@@ -1,4 +1,5 @@
-import plotly.express as px
+# import plotly.express as px
+import plotly.graph_objects as go
 import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
@@ -25,24 +26,25 @@ def show_dataframe(df, style_dict={'background': '#000000', 'text':'#FFFFFF'}):
                 )
             )
     )
-def show_piechart(df, chart_description={'values':"columnValue",
-                                         'names': "columnGroup",
-                                         'title': 'Title'}):
+def show_piechart(df, label_column, value_column, chart_description={'values':"columnValue",
+                                                             'names': "columnGroup",
+                                                             'title': 'Title'}):
     """
     Returns a dash html <div> element containing a piechart from data df
     :param df: holds data of piechart
+    :param label_column: Column name of labels in df
+    :param value_column: Column name of values in df
     :param chart_description: dictionary holding column names and title
     :return: dash <div> element with piechart
     """
-    return(html.Div(dcc.Graph(figure = px.pie(df,
-                                     values=chart_description['values'],
-                                     names=chart_description['names'],
-                                     title=chart_description['title']
-                                     ).update_layout(paper_bgcolor='#000000',
-                                                     font_color='#FFFFFF',
-                                                     font_size=17,
-                                                     title_font_size=22
-                                                     )
+    return(html.Div(dcc.Graph(figure = go.Figure(data=[go.Pie(labels=df[label_column],
+                                                              values=df[value_column],
+                                                              sort=False)]
+                                                 ).update_layout(paper_bgcolor='#000000',
+                                                             font_color='#FFFFFF',
+                                                             font_size=17,
+                                                             title_font_size=22
+                                                             )
                              )
                     )
            )

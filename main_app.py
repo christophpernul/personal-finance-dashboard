@@ -5,6 +5,7 @@ import dash_core_components as dcc
 from dash.dependencies import Input, Output
 
 import tab_portfolio_overview
+import lib_portfolio as pl
 
 colors = {
     'background': '#000000',
@@ -14,7 +15,14 @@ default_style_text = {'align': 'center',
                       'background': colors['background'],
                       'color': colors['text']
                       }
+################################ Data Processing for ETF portfolio #####################################################
+(df_etf_init, df_orders_init, _, _) = pl.load_data()
+(df_orders, _) = pl.preprocess_orders(df_orders_init)
+df_etf = pl.preprocess_etf_masterdata(df_etf_init)
+orders_etf = pl.enrich_orders(df_orders, df_etf)
+portfolio = pl.get_current_portfolio(orders_etf)
 
+################################ Define Dash App configuration ### #####################################################
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SLATE])
 server = app.server
 
@@ -39,7 +47,7 @@ app.layout = html.Div([body])
               Input('tab-navbar', 'value'))
 def render_content(tab):
     if tab == "tab-expenses":
-        return(tab_portfolio_overview.hmtl_overview())
+        return(tab_portfolio_overview.hmtl_overview(portfolio))
     elif tab == "tab-income":
         return(html.Div("Income", style=default_style_text))
 

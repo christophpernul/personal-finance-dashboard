@@ -1,8 +1,5 @@
-# import pandas as pd
-import dash
 import dash_html_components as html
 import dash_bootstrap_components as dbc
-# from dash.dependencies import Input, Output
 import lib_portfolio as pl
 import lib_dash_plot as dpl
 
@@ -24,25 +21,14 @@ piechart_descriptions = [
     {'values': 'Percentage', 'names': 'physical', 'title': 'Physical'}
 ]
 
-def hmtl_overview():
-    ################################ Data Processing for ETF portfolio #####################################################
-    (df_etf_init, df_orders_init, _, _) = pl.load_data()
-    (df_orders, _) = pl.preprocess_orders(df_orders_init)
-    df_etf = pl.preprocess_etf_masterdata(df_etf_init)
-    orders_etf = pl.enrich_orders(df_orders, df_etf)
-    portfolio = pl.get_current_portfolio(orders_etf)
-
-    unique_etfs = orders_etf[["ISIN", "Name"]].drop_duplicates().sort_values("ISIN").reset_index(drop=True)
-
-    ### ------------------- Portfolio of monthly savings plan ------------------
+def hmtl_overview(portfolio):
     group_cols = ["Region", "Type", "accumulating", "physical"]
     compute_cols = ["Betrag", "Betrag", "Betrag", "Betrag"]
     agg_functions = ["sum", "sum", "sum", "sum"]
     grouped_portfolio = pl.compute_percentage_per_group(portfolio, group_cols, compute_cols, agg_functions)
 
     portfolio_view = portfolio.copy()
-    portfolio_view["Betrag"] = -portfolio_view["Betrag"] #[200, 200, 100, 100, 50, 50, 50, 50, 50, 50, 50, 50]
-    print(portfolio_view["Betrag"].sum())
+    portfolio_view["Betrag"] = -portfolio_view["Betrag"]
     portfolio_view["Kosten"] = -portfolio_view["Kosten"]
 
     portfolio_view["cost/a"] = 12*portfolio_view["Betrag"]*portfolio_view["TER in %"]/100
@@ -61,7 +47,7 @@ def hmtl_overview():
         dbc.Col(
             dbc.Card(
                 dbc.CardBody(
-                    html.H1(html.B("Dashboard ETF Savings Plan"), style=default_style_text)
+                    html.H1(html.B("Übersicht monatlicher Sparplan"), style=default_style_text)
                 ),
             style=default_style_text
             ),
@@ -114,15 +100,23 @@ def hmtl_overview():
 
     chart_panel = dbc.Row([
                             dbc.Col(dpl.show_piechart(grouped_portfolio[0],
+                                                      group_cols[0],
+                                                      "Percentage",
                                                        piechart_descriptions[0]),
                                     width=3),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[1],
+                                                      group_cols[1],
+                                                      "Percentage",
                                                        piechart_descriptions[1])
                                     , width=3),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[2],
+                                                      group_cols[2],
+                                                      "Percentage",
                                                        piechart_descriptions[2])
                                     , width=3),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[3],
+                                                      group_cols[3],
+                                                      "Percentage",
                                                        piechart_descriptions[3])
                                     , width=3)
                             ],
