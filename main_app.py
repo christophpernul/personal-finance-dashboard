@@ -12,18 +12,18 @@ default_style_text = {'align': 'center',
                       'color': colors['text']
                       }
 
-app = dash.Dash(__name__)#, external_stylesheets=[dbc.themes.SLATE])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SLATE])
 server = app.server
 
 tab_expenses = html.Div("Expenses")
 tab_income = html.Div("Income")
 
-tab_nav_bar = dcc.Tabs(id="all-tab-nav", value="tab-overview", children=[
-    dcc.Tab(label="Ausgaben", id="tab-expenses", children=[tab_expenses]),
-    dcc.Tab(label="Einnahmen", id="tab-income", children=[tab_income])
+tab_nav_bar = dcc.Tabs(id="tab-app", value="tab-expenses", children=[
+    dcc.Tab(label="Ausgaben", value="tab-expenses", children=[tab_expenses]),
+    dcc.Tab(label="Einnahmen", value="tab-income", children=[tab_income])
 ])
 
-body = html.Div("Test")#, style=default_style_text)
+body = html.Div("Test", style=default_style_text)
 
 app.layout = html.Div([tab_nav_bar])
 
