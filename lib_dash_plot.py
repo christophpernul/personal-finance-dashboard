@@ -37,9 +37,11 @@ def show_piechart(df, label_column, value_column, chart_description={'values':"c
     :param chart_description: dictionary holding column names and title
     :return: dash <div> element with piechart
     """
+    hoverinfo = str(label_column) + ": %{label}<br>" + str(value_column) + ": %{value}%" + "<extra></extra>"
     return(html.Div(dcc.Graph(figure = go.Figure(data=[go.Pie(labels=df[label_column],
                                                               values=df[value_column],
-                                                              sort=False)]
+                                                              sort=False,
+                                                              hovertemplate=hoverinfo)]
                                                  ).update_layout(paper_bgcolor='#000000',
                                                              font_color='#FFFFFF',
                                                              font_size=17,

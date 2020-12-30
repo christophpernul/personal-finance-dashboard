@@ -21,7 +21,7 @@ piechart_descriptions = [
     {'values': 'Percentage', 'names': 'physical', 'title': 'Physical'}
 ]
 
-def hmtl_overview(portfolio):
+def html_overview(portfolio):
     group_cols = ["Region", "Type", "accumulating", "physical"]
     compute_cols = ["Betrag", "Betrag", "Betrag", "Betrag"]
     agg_functions = ["sum", "sum", "sum", "sum"]
