@@ -4,6 +4,8 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 from dash.dependencies import Input, Output
 
+import tab_portfolio_overview
+
 colors = {
     'background': '#000000',
     'text': '#FFFFFF'
@@ -37,7 +39,7 @@ app.layout = html.Div([body])
               Input('tab-navbar', 'value'))
 def render_content(tab):
     if tab == "tab-expenses":
-        return(html.Div("Expenses", style=default_style_text))
+        return(tab_portfolio_overview.hmtl_overview())
     elif tab == "tab-income":
         return(html.Div("Income", style=default_style_text))
 

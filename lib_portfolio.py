@@ -1,7 +1,7 @@
 import pandas as pd
 
-def load_data(order_data__absolute_path="/home/chris/Dropbox/Finance/finanzübersicht.ods",
-              etf_master_data_absolute_path="/home/chris/Dropbox/Finance/ETF_investing.ods",
+def load_data(order_data__absolute_path="/home/chris/Dropbox/Finance/data/finanzübersicht.ods",
+              etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/ETF_investing.ods",
               include_speculation=False):
     """
     Needs odfpy library to load .ods files!
