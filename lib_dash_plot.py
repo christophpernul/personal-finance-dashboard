@@ -25,15 +25,14 @@ def show_dataframe(df, style_dict={'background': '#000000', 'text':'#FFFFFF'}):
                 )
             )
     )
-def show_piechart(df, label_column, value_column, chart_description={'values':"columnValue",
-                                                             'names': "columnGroup",
-                                                             'title': 'Title'}):
+def show_piechart(df, label_column, value_column, theme_colors={'background':"#32383E",
+                                                                'text': "#FFFFFF"}):
     """
     Returns a dash html <div> element containing a piechart from data df
     :param df: holds data of piechart
     :param label_column: Column name of labels in df
     :param value_column: Column name of values in df
-    :param chart_description: dictionary holding column names and title
+    :param theme_colors: dictionary holding background and text colors
     :return: dash <div> element with piechart
     """
     hoverinfo = str(label_column) + ": %{label}<br>" + str(value_column) + ": %{value}%" + "<extra></extra>"
@@ -41,11 +40,14 @@ def show_piechart(df, label_column, value_column, chart_description={'values':"c
                                                               values=df[value_column],
                                                               sort=False,
                                                               hovertemplate=hoverinfo)]
-                                                 ).update_layout(paper_bgcolor='#32383E',
-                                                             font_color='#FFFFFF',
-                                                             font_size=17,
-                                                             title_font_size=22
-                                                             )
+                                                 ).update_layout(paper_bgcolor=theme_colors['background'],
+                                                                 font_color=theme_colors['text'],
+                                                                 font_size=17,
+                                                                 title_font_size=22,
+                                                                 title={#upper() is used, because some columns are lowercase
+                                                                     'text': label_column[0].upper()+label_column[1:]
+                                                                 }
+                                                                 )
                              )
                     )
            )
