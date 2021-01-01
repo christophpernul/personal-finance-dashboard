@@ -1,4 +1,3 @@
-# import plotly.express as px
 import plotly.graph_objects as go
 import dash_table
 import dash_core_components as dcc
@@ -42,7 +41,7 @@ def show_piechart(df, label_column, value_column, chart_description={'values':"c
                                                               values=df[value_column],
                                                               sort=False,
                                                               hovertemplate=hoverinfo)]
-                                                 ).update_layout(paper_bgcolor='#000000',
+                                                 ).update_layout(paper_bgcolor='#32383E',
                                                              font_color='#FFFFFF',
                                                              font_size=17,
                                                              title_font_size=22

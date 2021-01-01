@@ -5,14 +5,10 @@ import lib_dash_plot as dpl
 
 
 
-colors = {
-    'background': '#000000',
+theme_colors = {
+    'background': '#32383E',
     'text': '#FFFFFF'
 }
-default_style_text = {'align': 'center',
-                      'background': colors['background'],
-                      'color': colors['text']
-                      }
 
 piechart_descriptions = [
     {'values': 'Percentage', 'names': 'Region', 'title': 'Region'},
@@ -21,7 +17,7 @@ piechart_descriptions = [
     {'values': 'Percentage', 'names': 'physical', 'title': 'Physical'}
 ]
 
-def html_overview(portfolio):
+def html_portfolio_overview(portfolio):
     group_cols = ["Region", "Type", "accumulating", "physical"]
     compute_cols = ["Betrag", "Betrag", "Betrag", "Betrag"]
     agg_functions = ["sum", "sum", "sum", "sum"]
@@ -47,55 +43,48 @@ def html_overview(portfolio):
         dbc.Col(
             dbc.Card(
                 dbc.CardBody(
-                    html.H1(html.B("Übersicht monatlicher Sparplan"), style=default_style_text)
+                    html.H1(html.B("Übersicht monatlicher Sparplan"))
                 ),
-            style=default_style_text
             ),
-            width=6
+            width=6,
+            align='center'
         )
 
     kpi_panel_top = \
                     html.Div(
                         dbc.Row(
-                            [dbc.Col(html.H2("Average TER", style=default_style_text)),
-                             dbc.Col(html.H2(html.B(f"{average_TER} %"), style=default_style_text))],
-                            justify='between'
-                        # )
-                    # )
+                            [dbc.Col(html.H2("Average TER")),
+                             dbc.Col(html.H2(html.B(f"{average_TER} %")))],
+                            justify='around'
                 ),
-                style=default_style_text
             )
 
     kpi_panel_bottom = \
                     html.Div(
                         dbc.Row(
-                            [dbc.Col(html.H2("Total monthly Savings", style=default_style_text)),
-                             dbc.Col(html.H2(html.B(f"{total_monthly_savings} €"), style=default_style_text))],
-                            justify='between'
-                        # )
-                    # )
+                            [dbc.Col(html.H2("Total monthly Savings")),
+                             dbc.Col(html.H2(html.B(f"{total_monthly_savings} €")))],
+                            justify='around'
                 ),
-                style=default_style_text
             )
 
     kpi_panel = dbc.Col(
         dbc.Card(
             dbc.CardBody(
-                html.Div([kpi_panel_top, kpi_panel_bottom], style=default_style_text)
+                html.Div([kpi_panel_top, kpi_panel_bottom])
             ),
-        style=default_style_text
         ),
-        width=6
+        width=6,
+        align='center'
     )
 
-    header_panel = dbc.Row([heading,kpi_panel], justify='end')
+    header_panel = dbc.Row([heading,kpi_panel], justify='around')
 
     dataframe_panel = \
         dbc.Card(
             dbc.CardBody(
-                dpl.show_dataframe(portfolio_view, style_dict=colors)
+                dpl.show_dataframe(portfolio_view, style_dict=theme_colors)
             ),
-            style=default_style_text
         )
 
     chart_panel = dbc.Row([
@@ -103,22 +92,26 @@ def html_overview(portfolio):
                                                       group_cols[0],
                                                       "Percentage",
                                                        piechart_descriptions[0]),
-                                    width=3),
+                                    width=3,
+                                    align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[1],
                                                       group_cols[1],
                                                       "Percentage",
-                                                       piechart_descriptions[1])
-                                    , width=3),
+                                                       piechart_descriptions[1]),
+                                    width=3,
+                                    align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[2],
                                                       group_cols[2],
                                                       "Percentage",
-                                                       piechart_descriptions[2])
-                                    , width=3),
+                                                       piechart_descriptions[2]),
+                                    width=3,
+                                    align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[3],
                                                       group_cols[3],
                                                       "Percentage",
-                                                       piechart_descriptions[3])
-                                    , width=3)
+                                                       piechart_descriptions[3]),
+                                    width=3,
+                                    align='center')
                             ],
         justify='around'
     )
