@@ -17,20 +17,21 @@ portfolio_monthly = pl.get_current_portfolio(orders_etf)
 app = dash.Dash(__name__, title="Finance App", external_stylesheets=[dbc.themes.SLATE])
 server = app.server
 
-tab_nav_bar = dbc.Tabs(id="tab-navbar",
-                       active_tab="tab-expenses",
-                       children=[
-                                dbc.Tab(label="Ausgaben", tab_id="tab-expenses"),
-                                dbc.Tab(label="Einnahmen", tab_id="tab-income")
-                                ]
-                       )
+tab_nav_bar = \
+                    dbc.Tabs(id="tab-navbar",
+                             active_tab="tab-expenses",
+                             children=[
+                                        dbc.Tab(label="Ausgaben", tab_id="tab-expenses"),
+                                        dbc.Tab(label="Einnahmen", tab_id="tab-income")
+                                      ],
+                             card=True
+                             )
 
-body = html.Div(
-    [tab_nav_bar,
-     html.Div(id="tab-content")]
-)
+body = [dbc.CardHeader(tab_nav_bar),
+        dbc.CardBody(html.Div(id="tab-content"))
+]
 
-app.layout = html.Div([body])
+app.layout = dbc.Card(body)
 
 @app.callback(Output('tab-content', 'children'),
               Input('tab-navbar', 'active_tab'))
