@@ -154,7 +154,9 @@ def html_portfolio_overview(portfolio,
                     )
     return(tab_overview)
 
-def html_portfolio_value(df_orders, df_prices):
+def html_portfolio_value(df_orders,
+                         df_prices,
+                         title="Portfolio Price Trend"):
 
     dropdown_timespan = dcc.Dropdown(options=[
                                         {"label": "1 Month", "value": 1},
@@ -165,26 +167,80 @@ def html_portfolio_value(df_orders, df_prices):
                                         {"label": "Full", "value": -1}
                                     ],
                                     value=-1,
-                                    id="dropdown-timespan"
-    )
-    html_element = html.Div([dropdown_timespan,
-                             html.Div(id="timeseries-chart")
-                             ]
-                            )
+                                    id="dropdown-timespan",
 
-    return(html_element)
+    )
+    distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+    dropdown_stocks = dcc.Dropdown(options=[
+        {"label": stock_name, "value": idx} for idx, stock_name in enumerate(distinct_stocks)
+    ],
+        value=0,
+        id="dropdown-stocks"
+    )
+    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
+                                dropdown_timespan,
+                                 html.Br(),
+                                html.H2("Choose a stock"),
+                                 dropdown_stocks,
+                                 html.Br()
+                                 # html.Div(id="timeseries-chart")
+                               ]
+                             )
+
+    graph_panel = html.Div(id="timeseries-chart")
+
+    html_content = html.Div(
+                        dbc.Row([
+                            dbc.Col(dropdown_panel,
+                                    width=4,
+                                    align='center'
+                                    ),
+                            dbc.Col(graph_panel,
+                                    width=8,
+                                    align='center'
+                                    )
+                                ],
+                            justify='around'
+                        )
+    )
+
+    heading = \
+            dbc.Card(
+                dbc.CardBody(
+                    html.H1(html.B(title))
+                ),
+            )
+
+    html_page = html.Div([
+        heading,
+        html.Br(),
+        html_content
+    ])
+
+    return(html_page)
 
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because
 # all callbacks need to be defined when the app is started!
 @app.callback(Output('timeseries-chart', 'children'),
-              Input('dropdown-timespan', 'value'))
-def timeseries_chart(timespan):
+              [Input('dropdown-timespan', 'value'),
+                Input('dropdown-stocks', 'value')
+               ]
+              )
+def timeseries_chart(timespan, stock_name):
+    print(timespan, stock_name)
     if timespan == -1:
-        print(timespan)
         html_div = html.Div("Full")
         return (html_div)
-    elif timespan > 0:
-        print(timespan)
-        html_div = html.Div("1 Month")
+    elif timespan == 3:
+        html_div = html.Div("3 Month")
+        return (html_div)
+    elif timespan == 6:
+        html_div = html.Div("6 Month")
+        return (html_div)
+    elif timespan == 12:
+        html_div = html.Div("12 Month")
+        return (html_div)
+    elif timespan == 60:
+        html_div = html.Div("5 Years")
         return (html_div)
