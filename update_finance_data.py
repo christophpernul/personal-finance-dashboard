@@ -1,9 +1,10 @@
-import lib_finance_data as fdlib
+import lib_finance as fdlib
 import pandas as pd
 import os
 
 base_path = "/home/chris/Dropbox/Finance/data/"
 fname_isin_full = "ETF_investing.ods"
+fname_regionMapping = "ETF_regionTypes.ods"
 fname_isin_needed = "finanzübersicht.ods"
 fname_master_data = "master_data_stocks.ods"
 fname_price_data = "stock_prices.ods"
@@ -20,6 +21,10 @@ if fname_master_data in os.listdir(base_path):
     df_master = pd.read_csv(base_path+fname_master_data)
 else:
     df_master = None
+if fname_regionMapping in os.listdir(base_path):
+    df_regions = pd.read_excel(base_path+fname_regionMapping, engine="odf")
+else:
+    df_regions = None
 if fname_price_data in os.listdir(base_path):
     df_price = pd.read_csv(base_path+fname_price_data)
 else:
@@ -29,6 +34,10 @@ print("Extract stock masterdata from justetf.com!")
 stock_dict = fdlib.get_master_data(isin_list_full)
 master = pd.DataFrame(stock_dict)
 assert master.count()[0] == len(isin_list_full), "Too less rows!"
+if ~isinstance(df_regions, type(None)):
+    print("Join region types to ETF master data!")
+    master = master.merge(df_regions, how="left", left_on="ISIN", right_on="ISIN").drop("Name_y", axis=1)\
+                    .rename(columns={"Name_x": "Name"})
 print("Write master data to file!")
 master.to_csv(base_path+fname_master_data, index=False)
 

@@ -1,6 +1,6 @@
 import dash_html_components as html
 import dash_bootstrap_components as dbc
-import lib_portfolio as pl
+import lib_data_operations as pl
 import lib_dash_plot as dpl
 
 
@@ -13,27 +13,52 @@ theme_colors = {
 piechart_descriptions = [
     {'values': 'Percentage', 'names': 'Region', 'title': 'Region'},
     {'values': 'Percentage', 'names': 'Type', 'title': 'Type'},
-    {'values': 'Percentage', 'names': 'accumulating', 'title': 'Accumulating'},
-    {'values': 'Percentage', 'names': 'physical', 'title': 'Physical'}
+    {'values': 'Percentage', 'names': 'Ausschüttung', 'title': 'Ausschüttung'},
+    {'values': 'Percentage', 'names': 'Replikationsmethode', 'title': 'Replikationsmethode'}
 ]
 
-def html_portfolio_overview(portfolio):
-    group_cols = ["Region", "Type", "accumulating", "physical"]
-    compute_cols = ["Betrag", "Betrag", "Betrag", "Betrag"]
-    agg_functions = ["sum", "sum", "sum", "sum"]
-    grouped_portfolio = pl.compute_percentage_per_group(portfolio, group_cols, compute_cols, agg_functions)
+def html_portfolio_overview(portfolio,
+                            group_columns: list,
+                            compute_columns: list,
+                            aggregation_columns: list,
+                            cost_column_name = "Betrag",
+                            title = "Übersicht monatlicher Sparplan",
+                            title_kpi_cost = "Monatliches Investment"
+                            ):
+    """
+    Creates a HTML element that displays four elements as a page:
+    Top left: Title of page
+    Top right: Two KPI elements:
+                Top:
+    Middle: Table with overview of current monthly savings plan
+    Bottom: Panel of four piecharts showing statistics about Region, Type, Replication method and accumulation
+    :param portfolio: dataframe holding transactions
+    :param group_columns: Columns used for groupby for piecharts
+    :param compute_columns: Columns that are aggregated by groupby
+    :param aggregation_columns: Aggregation function for groupby
+    :param title: Title of the page
+    :param title_kpi_cost: Title of the KPI element showing the total cost of investment
+    :return: HTML div element
+    """
+    grouped_portfolio = pl.compute_percentage_per_group(portfolio,
+                                                        group_columns,
+                                                        compute_columns,
+                                                        aggregation_columns
+                                                        )
 
     portfolio_view = portfolio.copy()
-    portfolio_view["Betrag"] = -portfolio_view["Betrag"]
-    portfolio_view["Kosten"] = -portfolio_view["Kosten"]
 
-    portfolio_view["cost/a"] = 12*portfolio_view["Betrag"]*portfolio_view["TER in %"]/100
-    total_monthly_savings = abs(portfolio_view["total_execution_cost"].iloc[0])
-    average_TER = round((portfolio_view["cost/a"]/(12*total_monthly_savings)).sum()*100, 3)
+    portfolio_view["cost/a"] = 12*portfolio_view[cost_column_name]*portfolio_view["TER%"]/100
+    total_costs = round(portfolio_view[cost_column_name].sum(), 2)
+    average_TER = round((portfolio_view["cost/a"]/(12*total_costs)).sum()*100, 3)
 
+    portfolio_view = portfolio_view.drop(["cost/a"], axis=1)
 
-    portfolio_view = portfolio_view[["Name", "ISIN", "Betrag", "Kosten", "Type", "Region", "physical", "accumulating", "TER in %"]]\
-                    .sort_values("Betrag", ascending=False)
+    all_group_columns = ["Name", "ISIN", "TER%"]+ group_columns
+    portfolio_view = portfolio_view.groupby(all_group_columns).sum()\
+                                    .reset_index().sort_values(cost_column_name, ascending=False)
+
+    portfolio_view = portfolio_view[all_group_columns + [cost_column_name]]
 
 
 
@@ -43,7 +68,7 @@ def html_portfolio_overview(portfolio):
         dbc.Col(
             dbc.Card(
                 dbc.CardBody(
-                    html.H1(html.B("Übersicht monatlicher Sparplan"))
+                    html.H1(html.B(title))
                 ),
             ),
             width=6,
@@ -53,7 +78,7 @@ def html_portfolio_overview(portfolio):
     kpi_panel_top = \
                     html.Div(
                         dbc.Row(
-                            [dbc.Col(html.H2("Average TER")),
+                            [dbc.Col(html.H2("Durchschnittliches TER")),
                              dbc.Col(html.H2(html.B(f"{average_TER} %")))],
                             justify='around'
                 ),
@@ -62,8 +87,8 @@ def html_portfolio_overview(portfolio):
     kpi_panel_bottom = \
                     html.Div(
                         dbc.Row(
-                            [dbc.Col(html.H2("Total monthly Savings")),
-                             dbc.Col(html.H2(html.B(f"{total_monthly_savings} €")))],
+                            [dbc.Col(html.H2(title_kpi_cost)),
+                             dbc.Col(html.H2(html.B(f"{total_costs} €")))],
                             justify='around'
                 ),
             )
@@ -89,25 +114,25 @@ def html_portfolio_overview(portfolio):
 
     chart_panel = dbc.Row([
                             dbc.Col(dpl.show_piechart(grouped_portfolio[0],
-                                                      group_cols[0],
+                                                      group_columns[0],
                                                       "Percentage",
                                                        theme_colors),
                                     width=3,
                                     align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[1],
-                                                      group_cols[1],
+                                                      group_columns[1],
                                                       "Percentage",
                                                        theme_colors),
                                     width=3,
                                     align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[2],
-                                                      group_cols[2],
+                                                      group_columns[2],
                                                       "Percentage",
                                                        theme_colors),
                                     width=3,
                                     align='center'),
                             dbc.Col(dpl.show_piechart(grouped_portfolio[3],
-                                                      group_cols[3],
+                                                      group_columns[3],
                                                       "Percentage",
                                                        theme_colors),
                                     width=3,
