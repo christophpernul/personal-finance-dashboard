@@ -171,10 +171,11 @@ def html_portfolio_value(df_orders,
 
     )
     distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+
     dropdown_stocks = dcc.Dropdown(options=[
-        {"label": stock_name, "value": idx} for idx, stock_name in enumerate(distinct_stocks)
+        {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
     ],
-        value=0,
+        value=distinct_stocks[0],
         id="dropdown-stocks"
     )
     dropdown_panel = html.Div([html.H2("Choose a timeframe"),
@@ -183,7 +184,6 @@ def html_portfolio_value(df_orders,
                                 html.H2("Choose a stock"),
                                  dropdown_stocks,
                                  html.Br()
-                                 # html.Div(id="timeseries-chart")
                                ]
                              )
 
@@ -227,10 +227,10 @@ def html_portfolio_value(df_orders,
                 Input('dropdown-stocks', 'value')
                ]
               )
-def timeseries_chart(timespan, stock_name):
+def specify_dropdowns(timespan, stock_name):
     print(timespan, stock_name)
     if timespan == -1:
-        html_div = html.Div("Full")
+        html_div = dpl.timeseries_chart(timespan, stock_name)
         return (html_div)
     elif timespan == 3:
         html_div = html.Div("3 Month")
