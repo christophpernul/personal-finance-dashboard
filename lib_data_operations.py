@@ -196,7 +196,7 @@ def get_portfolio_value(df_trx: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Dat
     df_portfolio = df.merge(dfp, how="left", left_on="ISIN", right_on="ISIN", suffixes=["", "_y"])\
                         .drop("Datum_y", axis=1)
     assert (df_portfolio["Price"].isna().sum()>0).any() == False, "Prices are missing for a transaction!"
-    df_portfolio["Wert"] = df_portfolio["Stück"] * df_portfolio["Price"]
+    df_portfolio["Wert"] = round(df_portfolio["Stück"] * df_portfolio["Price"], 2)
 
     return (df_portfolio)
 
