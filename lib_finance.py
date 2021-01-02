@@ -27,7 +27,7 @@ def get_price_stock(soup_base):
 
     price_dict["Currency"] = currency
     price_dict["Price"] = price
-    price_dict["Datum"] = date.today().strftime("%d.%m.%Y")
+    price_dict["Date"] = date.today().strftime("%d.%m.%Y")
 
     return (price_dict)
 

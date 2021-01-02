@@ -1,5 +1,9 @@
 import dash_html_components as html
 import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output
+import dash_core_components as dcc
+
+from app import app
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -13,17 +17,17 @@ theme_colors = {
 piechart_descriptions = [
     {'values': 'Percentage', 'names': 'Region', 'title': 'Region'},
     {'values': 'Percentage', 'names': 'Type', 'title': 'Type'},
-    {'values': 'Percentage', 'names': 'Ausschüttung', 'title': 'Ausschüttung'},
-    {'values': 'Percentage', 'names': 'Replikationsmethode', 'title': 'Replikationsmethode'}
+    {'values': 'Percentage', 'names': 'Distributing', 'title': 'Distributing'},
+    {'values': 'Percentage', 'names': 'Replicationmethod', 'title': 'Replicationmethod'}
 ]
 
 def html_portfolio_overview(portfolio,
                             group_columns: list,
                             compute_columns: list,
                             aggregation_columns: list,
-                            cost_column_name = "Betrag",
-                            title = "Übersicht monatlicher Sparplan",
-                            title_kpi_cost = "Monatliches Investment"
+                            cost_column_name = "Investment",
+                            title = "Overview monthly Savings Plan",
+                            title_kpi_cost = "Monthly Investment"
                             ):
     """
     Creates a HTML element that displays four elements as a page:
@@ -78,7 +82,7 @@ def html_portfolio_overview(portfolio,
     kpi_panel_top = \
                     html.Div(
                         dbc.Row(
-                            [dbc.Col(html.H2("Durchschnittliches TER")),
+                            [dbc.Col(html.H2("Average TER")),
                              dbc.Col(html.H2(html.B(f"{average_TER} %")))],
                             justify='around'
                 ),
@@ -149,3 +153,38 @@ def html_portfolio_overview(portfolio,
                             ]
                     )
     return(tab_overview)
+
+def html_portfolio_value(df_orders, df_prices):
+
+    dropdown_timespan = dcc.Dropdown(options=[
+                                        {"label": "1 Month", "value": 1},
+                                        {"label": "3 Months", "value": 3},
+                                        {"label": "6 Months", "value": 6},
+                                        {"label": "1 Year", "value": 12},
+                                        {"label": "5 Years", "value": 60},
+                                        {"label": "Full", "value": -1}
+                                    ],
+                                    value=-1,
+                                    id="dropdown-timespan"
+    )
+    html_element = html.Div([dropdown_timespan,
+                             html.Div(id="timeseries-chart")
+                             ]
+                            )
+
+    return(html_element)
+
+########################################### CALLBACK FUNCTIONS #########################################################
+# These callback functions need to be defined outside of the function, which uses it, because
+# all callbacks need to be defined when the app is started!
+@app.callback(Output('timeseries-chart', 'children'),
+              Input('dropdown-timespan', 'value'))
+def timeseries_chart(timespan):
+    if timespan == -1:
+        print(timespan)
+        html_div = html.Div("Full")
+        return (html_div)
+    elif timespan > 0:
+        print(timespan)
+        html_div = html.Div("1 Month")
+        return (html_div)

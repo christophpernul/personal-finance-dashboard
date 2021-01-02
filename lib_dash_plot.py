@@ -51,3 +51,6 @@ def show_piechart(df, label_column, value_column, theme_colors={'background':"#3
                              )
                     )
            )
+
+def timeseries_chart(timespan):
+    return(timespan)

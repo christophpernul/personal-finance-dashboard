@@ -40,9 +40,9 @@ def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
     assert dfp["Currency"].drop_duplicates().count() == 1, "Multiple currencies used for price data!"
     assert dfp["Currency"].iloc[0] == "EUR", "Currency is not Euro!"
 
-    dfp["Datum"] = pd.to_datetime(dfp["Datum"], format="%d.%m.%Y")
-    latest_date = dfp["Datum"].max()
-    df_current_prices = dfp[dfp["Datum"] == latest_date].reset_index(drop=True)
+    dfp["Date"] = pd.to_datetime(dfp["Date"], format="%d.%m.%Y")
+    latest_date = dfp["Date"].max()
+    df_current_prices = dfp[dfp["Date"] == latest_date].reset_index(drop=True)
     return(df_current_prices)
 
 
@@ -58,14 +58,18 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     orders_portfolio = df_orders.copy()
     expected_comments = ['monatlich', 'Dividende']
     portfolio_columns = ["Index", "Datum", "Kurs", "Betrag", "Kosten", "Anbieter", "Name", "ISIN"]
+    new_portfolio_columns = ["Index", "Date", "Price", "Investment", "Ordercost", "Depotprovider", "Name", "ISIN"]
+    rename_columns = {key: value for key, value in zip(portfolio_columns, new_portfolio_columns)}
 
-    assert set(orders_portfolio.columns).intersection(set(portfolio_columns)) == set(portfolio_columns), \
+    orders_portfolio = orders_portfolio.rename(columns=rename_columns)
+
+    assert set(orders_portfolio.columns).intersection(set(new_portfolio_columns)) == set(new_portfolio_columns), \
             "Some necessary columns are missing in the input dataframe!"
     assert orders_portfolio["Art"].dropna().drop_duplicates().count() == 1, "Mehrere Arten von Investments!"
     assert orders_portfolio["Art"].dropna().drop_duplicates()[0] == "ETF Sparplan", "Falsche Investmentart!"
 
     ### Keep only valid entries
-    orders_portfolio = orders_portfolio[~orders_portfolio["Betrag"].isna()]
+    orders_portfolio = orders_portfolio[~orders_portfolio["Investment"].isna()]
     ### Drop faulty entries where comment is empty
     orders_portfolio = orders_portfolio[orders_portfolio["Kommentar"] != "FAIL"]
 
@@ -75,15 +79,15 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     dividends_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "Dividende"]
     orders_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "monatlich"]
 
-    orders_portfolio = orders_portfolio[portfolio_columns]
-    orders_portfolio = orders_portfolio[~orders_portfolio["Datum"].isna()]
-    orders_portfolio["Datum"] = pd.to_datetime(orders_portfolio["Datum"], format="%d.%m.%Y")
+    orders_portfolio = orders_portfolio[new_portfolio_columns]
+    orders_portfolio = orders_portfolio[~orders_portfolio["Date"].isna()]
+    orders_portfolio["Date"] = pd.to_datetime(orders_portfolio["Date"], format="%d.%m.%Y")
     orders_portfolio["Index"] = orders_portfolio["Index"].astype(int)
 
-    assert (orders_portfolio[orders_portfolio["Betrag"] > 0.].count() != 0).any() == False, \
+    assert (orders_portfolio[orders_portfolio["Investment"] > 0.].count() != 0).any() == False, \
         "Positive Einträge im Orderportfolio!"
-    orders_portfolio["Betrag"] = -orders_portfolio["Betrag"]
-    orders_portfolio["Kosten"] = -orders_portfolio["Kosten"]
+    orders_portfolio["Investment"] = -orders_portfolio["Investment"]
+    orders_portfolio["Ordercost"] = -orders_portfolio["Ordercost"]
 
     return ((orders_portfolio, dividends_portfolio))
 
@@ -96,14 +100,18 @@ def preprocess_etf_masterdata(df_master: pd.DataFrame) -> pd.DataFrame:
     """
     etf_master = df_master.copy()
     etf_columns = ["Type", "Name", "ISIN", "Region", "Replikationsmethode", "Ausschüttung", "TER%"]
+    new_etf_columns = ["Type", "Name", "ISIN", "Region", "Replicationmethod", "Distributing", "TER%"]
+    etf_master = etf_master.rename(columns={key: value for key, value in zip(etf_columns, new_etf_columns)})
 
-    assert set(etf_master.columns).intersection(set(etf_columns)) == set(etf_columns), \
+    assert set(etf_master.columns).intersection(set(new_etf_columns)) == set(new_etf_columns), \
         "Some necessary columns are missing in the input dataframe!"
 
-    etf_master = etf_master[etf_columns]
+    etf_master = etf_master[new_etf_columns]
 
-    etf_master["Replikationsmethode"] = etf_master["Replikationsmethode"].map(lambda x: "Physisch" \
-                                                                            if x[:8] == "Physisch" else "Synthetisch")
+    etf_master["Replicationmethod"] = etf_master["Replicationmethod"].map(lambda x: "Physical" \
+                                                                            if x[:8] == "Physisch" else "Synthetic")
+    etf_master["Distributing"] = etf_master["Distributing"].map(lambda x: "Distributing" \
+        if x == "Ausschüttend" else "Accumulating")
     etf_master["Region"] = etf_master["Region"].fillna("").map(lambda x: "Emerging" if "Emerging" in x else x)
     return (etf_master)
 
@@ -115,7 +123,7 @@ def enrich_orders(df_orders, df_etf):
     :param df_etf: ETF master data
     :return:
     """
-    join_columns_etf_master = ["ISIN", "Type", "Region", "Replikationsmethode", "Ausschüttung", "TER%"]
+    join_columns_etf_master = ["ISIN", "Type", "Region", "Replicationmethod", "Distributing", "TER%"]
     orders_etf = df_orders.merge(df_etf[join_columns_etf_master].drop_duplicates(),
                                  how="inner",
                                  left_on="ISIN",
@@ -181,7 +189,7 @@ def get_portfolio_value(df_trx: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Dat
     if (df_trx.isna().sum()>0).any():
         print("Some entries contain NaN values! The statistics might be wrong!")
         print(df_trx.isna().sum())
-    needed_columns_trx = set(["Betrag", "Kurs", "ISIN"])
+    needed_columns_trx = set(["Investment", "Price", "ISIN"])
     needed_columns_prices = set(["Price", "ISIN"])
     assert needed_columns_trx.intersection(set(df_trx.columns)) == needed_columns_trx, \
             "One of the following columns are missing in df_trx: {}".format(needed_columns_trx)
@@ -191,12 +199,14 @@ def get_portfolio_value(df_trx: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Dat
     dfp = df_prices.copy()
 
     ### Compute amount of stocks bought
-    df["Stück"] = df["Betrag"] / df["Kurs"]
+    df["Amount"] = df["Investment"] / df["Price"]
+    ### Drop price of orderdata, which is the price at which a stock was bought --> here we use the current price
+    df = df.drop("Price", axis=1)
 
     df_portfolio = df.merge(dfp, how="left", left_on="ISIN", right_on="ISIN", suffixes=["", "_y"])\
-                        .drop("Datum_y", axis=1)
+                        .drop("Date_y", axis=1)
     assert (df_portfolio["Price"].isna().sum()>0).any() == False, "Prices are missing for a transaction!"
-    df_portfolio["Wert"] = round(df_portfolio["Stück"] * df_portfolio["Price"], 2)
+    df_portfolio["Value"] = round(df_portfolio["Amount"] * df_portfolio["Price"], 2)
 
     return (df_portfolio)
 

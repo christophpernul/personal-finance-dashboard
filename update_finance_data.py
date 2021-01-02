@@ -50,7 +50,7 @@ if isinstance(df_price, type(None)):
     prices.to_csv(base_path+fname_price_data, index=False)
 else:
     print("Price data already exists!")
-    overlap = df_price.merge(prices, left_on="Datum", right_on="Datum", how="inner")
+    overlap = df_price.merge(prices, left_on="Date", right_on="Date", how="inner")
     assert overlap.count()[0] == 0, "Price data for this date already exists!"
     df_price_new = df_price.append(prices, ignore_index=True)
     assert df_price_new.count()[0] == df_price.count()[0] + prices.count()[0], "Appending prices failed!"
