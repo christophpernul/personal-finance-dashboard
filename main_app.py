@@ -2,20 +2,9 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
-from app import app
+from app import app, portfolio_monthly, portfolio_value
 import apps_portfolio
-import lib_data_operations as pl
 
-################################ Data Processing for ETF portfolio #####################################################
-(df_etf_init, df_orders_init, df_income, df_prices_init, _) = pl.load_data()
-
-(df_orders, _) = pl.preprocess_orders(df_orders_init)
-df_prices = pl.preprocess_prices(df_prices_init)
-df_etf = pl.preprocess_etf_masterdata(df_etf_init)
-
-orders_etf = pl.enrich_orders(df_orders, df_etf)
-portfolio_monthly = pl.get_current_portfolio(orders_etf)
-portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
 
 ##################################### Define Dash App layout ###########################################################
 
@@ -52,6 +41,7 @@ def switch_tabs(tab):
         group_cols = ["Region", "Type", "Distributing", "Replicationmethod"]
         compute_cols = ["Investment", "Investment", "Investment", "Investment"]
         agg_functions = ["sum", "sum", "sum", "sum"]
+        # This function is called explicitly with data, because it is reused
         html_div = apps_portfolio.html_portfolio_overview(portfolio_monthly,
                                                           group_cols,
                                                           compute_cols,
@@ -62,6 +52,7 @@ def switch_tabs(tab):
         group_cols = ["Region", "Type", "Distributing", "Replicationmethod"]
         compute_cols = ["Value", "Value", "Value", "Value"]
         agg_functions = ["sum", "sum", "sum", "sum"]
+        # This function is called explicitly with data, because it is reused
         html_div = apps_portfolio.html_portfolio_overview(portfolio_value,
                                                           group_cols,
                                                           compute_cols,
@@ -72,7 +63,7 @@ def switch_tabs(tab):
                                                           )
         return(html_div)
     elif tab == "tab-timeseries":
-        html_div = apps_portfolio.html_portfolio_value(orders_etf, df_prices)
+        html_div = apps_portfolio.html_portfolio_value()
         return(html_div)
     elif tab == "tab-crypto":
         html_div = html.Div("No content yet!")

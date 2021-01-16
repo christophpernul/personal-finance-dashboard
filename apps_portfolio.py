@@ -3,11 +3,9 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
-from app import app
+from app import app, orders_etf, df_prices
 import lib_data_operations as pl
 import lib_dash_plot as dpl
-
-
 
 theme_colors = {
     'background': '#32383E',
@@ -154,9 +152,12 @@ def html_portfolio_overview(portfolio,
                     )
     return(tab_overview)
 
-def html_portfolio_value(df_orders,
-                         df_prices,
-                         title="Portfolio Price Trend"):
+def html_portfolio_value(title="Portfolio Price Trend"):
+    """
+
+    :param title:
+    :return:
+    """
 
     dropdown_timespan = dcc.Dropdown(options=[
                                         {"label": "1 Month", "value": 1},
@@ -170,7 +171,7 @@ def html_portfolio_value(df_orders,
                                     id="dropdown-timespan",
 
     )
-    distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+    distinct_stocks = list(orders_etf["Name"].drop_duplicates().sort_values())
 
     dropdown_stocks = dcc.Dropdown(options=[
         {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
@@ -219,6 +220,17 @@ def html_portfolio_value(df_orders,
 
     return(html_page)
 
+def timeseries_chart(timespan, stock_name):
+    """
+    TODO: Plotting instead of showing dataframe
+    :param timespan:
+    :param stock_name:
+    :return:
+    """
+    df_date_sorted = pl.filter_portfolio_date(orders_etf, timespan)
+    df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
+    return(dpl.show_dataframe(df_sorted))
+
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because
 # all callbacks need to be defined when the app is started!
@@ -229,18 +241,6 @@ def html_portfolio_value(df_orders,
               )
 def specify_dropdowns(timespan, stock_name):
     print(timespan, stock_name)
-    if timespan == -1:
-        html_div = dpl.timeseries_chart(timespan, stock_name)
-        return (html_div)
-    elif timespan == 3:
-        html_div = html.Div("3 Month")
-        return (html_div)
-    elif timespan == 6:
-        html_div = html.Div("6 Month")
-        return (html_div)
-    elif timespan == 12:
-        html_div = html.Div("12 Month")
-        return (html_div)
-    elif timespan == 60:
-        html_div = html.Div("5 Years")
-        return (html_div)
+    html_div = timeseries_chart(timespan, stock_name)
+    return (html_div)
+
