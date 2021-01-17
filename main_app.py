@@ -2,6 +2,7 @@ import dash_html_components as html
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
+### Import app and dataframes containing data to display to call necessary functions and define callbacks
 from app import app, portfolio_monthly, portfolio_value
 import apps_portfolio
 

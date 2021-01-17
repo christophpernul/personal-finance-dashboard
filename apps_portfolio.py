@@ -3,7 +3,8 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
-from app import app, orders_etf, df_prices
+### Import app (to define callbacks) and necessary preprocessed data
+from app import app, df_orders, orders_etf
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -42,6 +43,7 @@ def html_portfolio_overview(portfolio,
     :param title_kpi_cost: Title of the KPI element showing the total cost of investment
     :return: HTML div element
     """
+    ################################ Prepare data for remainder ########################################################
     grouped_portfolio = pl.compute_percentage_per_group(portfolio,
                                                         group_columns,
                                                         compute_columns,
@@ -154,7 +156,7 @@ def html_portfolio_overview(portfolio,
 
 def html_portfolio_value(title="Portfolio Price Trend"):
     """
-
+    TODO: Compute overall portfolio values in case of "Overall" selected, add this to distinct stocks
     :param title:
     :return:
     """
@@ -171,7 +173,7 @@ def html_portfolio_value(title="Portfolio Price Trend"):
                                     id="dropdown-timespan",
 
     )
-    distinct_stocks = list(orders_etf["Name"].drop_duplicates().sort_values())
+    distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
 
     dropdown_stocks = dcc.Dropdown(options=[
         {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
@@ -187,7 +189,7 @@ def html_portfolio_value(title="Portfolio Price Trend"):
                                  html.Br()
                                ]
                              )
-
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="timeseries-chart")
 
     html_content = html.Div(
@@ -222,14 +224,21 @@ def html_portfolio_value(title="Portfolio Price Trend"):
 
 def timeseries_chart(timespan, stock_name):
     """
-    TODO: Plotting instead of showing dataframe
-    :param timespan:
-    :param stock_name:
+    Function, that displays the content of the graph_panel, which gets filtered by the selected
+    dropdown elements (timespan, stock_name). Shows a linechart of the selected stock for the specified
+    timespan.
+    :param timespan: How many months into the past the data should range.
+    :param stock_name: Name of stock, that should be displayed
     :return:
     """
-    df_date_sorted = pl.filter_portfolio_date(orders_etf, timespan)
+    (orders, prices) = pl.prepare_orderAmounts_prices(df_orders)
+
+    df_date_sorted = pl.filter_portfolio_date(orders, timespan)
     df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
-    return(dpl.show_dataframe(df_sorted))
+
+    df_timeseries = pl.prepare_timeseries(df_sorted, prices)
+
+    return(dpl.plot_stock_linechart(df_timeseries))
 
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because
@@ -239,8 +248,13 @@ def timeseries_chart(timespan, stock_name):
                 Input('dropdown-stocks', 'value')
                ]
               )
-def specify_dropdowns(timespan, stock_name):
-    print(timespan, stock_name)
+def specify_dropdowns(timespan: int, stock_name: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
     html_div = timeseries_chart(timespan, stock_name)
     return (html_div)
 

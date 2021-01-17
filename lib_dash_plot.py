@@ -1,4 +1,6 @@
 import plotly.graph_objects as go
+import plotly.express as px
+
 import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
@@ -36,19 +38,54 @@ def show_piechart(df, label_column, value_column, theme_colors={'background':"#3
     :return: dash <div> element with piechart
     """
     hoverinfo = str(label_column) + ": %{label}<br>" + str(value_column) + ": %{value}%" + "<extra></extra>"
-    return(html.Div(dcc.Graph(figure = go.Figure(data=[go.Pie(labels=df[label_column],
-                                                              values=df[value_column],
-                                                              sort=False,
-                                                              hovertemplate=hoverinfo)]
-                                                 ).update_layout(paper_bgcolor=theme_colors['background'],
-                                                                 font_color=theme_colors['text'],
-                                                                 font_size=17,
-                                                                 title_font_size=22,
-                                                                 title={#upper() is used, because some columns are lowercase
-                                                                     'text': label_column[0].upper()+label_column[1:]
-                                                                 }
-                                                                 )
-                             )
+    fig = go.Figure(data=[go.Pie(labels=df[label_column],
+                                 values=df[value_column],
+                                 sort=False,
+                                 hovertemplate=hoverinfo
+                                 )
+                          ]
                     )
-           )
+    fig.update_layout(paper_bgcolor=theme_colors['background'],
+                      font_color=theme_colors['text'],
+                      font_size=17,
+                      title_font_size=22,
+                      title={'text': label_column[0].upper() + label_column[1:]
+                             # upper() is used, because some columns are lowercase
+                      }
+                      )
+    content = html.Div(
+        dcc.Graph(
+            figure=fig
+        )
+    )
+    return(content)
 
+
+def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", 'text': "#FFFFFF"}):
+    """
+    Uses a dataframe filtered on a specific stock and a given timespan to plot the timeseries of
+    the stock-value and the total investment over time.
+    :param df_timeseries: pd.DataFrame of price/investment values with Date filtered on a single stock/timespan
+    :param theme_colors: dictionary, providing theme colors for the plot
+    :return: html element consisting of a timeseries plot
+    """
+    try:
+        fig = px.line(df_timeseries, x='Date', y=['Investment', 'Value'])
+    except:
+        ### In case the dataframe is empty, because there is no transaction in the specified timespan
+        fig = go.Figure()
+    fig.update_traces(mode="lines+markers")
+    fig.update_layout(xaxis_title="Date",
+                      yaxis_title="Value",
+                      font_size=17,
+                      legend=dict(x=0.01, y=0.99, title=""),
+                      paper_bgcolor = theme_colors['background'],
+                      font_color = theme_colors['text'],
+                      title_font_size = 22
+                      )
+    content = html.Div(
+        dcc.Graph(
+            figure=fig
+        )
+    )
+    return(content)

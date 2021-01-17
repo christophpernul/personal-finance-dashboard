@@ -238,3 +238,29 @@ def filter_portfolio_stock(portfolio: pd.DataFrame, stock_name: str) -> pd.DataF
     """
     assert "Name" in portfolio.columns, 'Column "Name" is missing in input dataframe!'
     return(portfolio[portfolio["Name"] == stock_name])
+
+def prepare_orderAmounts_prices(orders: pd.DataFrame):
+    """
+    Extracts a dataframe of buy-prices for each stock at each date. Additionally prepare order-dataframe
+    with amount of stocks at each date.
+    :param orders: Holds price and investmentamount data for each stock at every date.
+    :return: Tuple of orders (including amount of stocks) and prices.
+    """
+    prices = orders[["Date", "Name", "Price"]]
+    necessary_columns = ["Date", "Name", "Investment", "Ordercost", "Amount"]
+    df_orders = orders.drop_duplicates().copy()
+    df_orders["Amount"] = df_orders["Investment"] / df_orders["Price"]
+    df_orders = df_orders[necessary_columns]
+    return((df_orders, prices))
+
+def prepare_timeseries(orders_filtered: pd.DataFrame, prices: pd.DataFrame):
+    """
+    TODO: Compute overall portfolio values in case of "Overall" selected
+    :param orders_filtered:
+    :param prices:
+    :return:
+    """
+    orders_filtered = orders_filtered.sort_values("Date").drop(["Date", "Name"], axis=1).cumsum()
+    orders_filtered = orders_filtered.merge(prices, how="inner", left_index=True, right_index=True)
+    orders_filtered["Value"] = orders_filtered["Amount"] * orders_filtered["Price"]
+    return(orders_filtered)
