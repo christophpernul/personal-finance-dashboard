@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from app import app, df_orders, orders_etf
+from app import app, df_orders, df_timeseries
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -26,7 +26,8 @@ def html_portfolio_overview(portfolio,
                             aggregation_columns: list,
                             cost_column_name = "Investment",
                             title = "Overview monthly Savings Plan",
-                            title_kpi_cost = "Monthly Investment"
+                            title_kpi_cost = "Monthly Investment",
+                            show_last_updated = False
                             ):
     """
     Creates a HTML element that displays four elements as a page:
@@ -41,6 +42,7 @@ def html_portfolio_overview(portfolio,
     :param aggregation_columns: Aggregation function for groupby
     :param title: Title of the page
     :param title_kpi_cost: Title of the KPI element showing the total cost of investment
+    :param show_last_updated: Flag, whether the date of the last price update of the title_kpi_cost is shown
     :return: HTML div element
     """
     ################################ Prepare data for remainder ########################################################
@@ -51,6 +53,10 @@ def html_portfolio_overview(portfolio,
                                                         )
 
     portfolio_view = portfolio.copy()
+    if show_last_updated == True:
+        assert len(set(portfolio_view["last_price_update"])) == 1, "Multiply dates for last price update in portfolio!"
+        last_updated = str(portfolio_view["last_price_update"].iloc[0]).split(" ")[0]
+        title_kpi_cost = title_kpi_cost + " (" + last_updated + ")"
 
     portfolio_view["cost/a"] = 12*portfolio_view[cost_column_name]*portfolio_view["TER%"]/100
     total_costs = round(portfolio_view[cost_column_name].sum(), 2)
@@ -154,11 +160,14 @@ def html_portfolio_overview(portfolio,
                     )
     return(tab_overview)
 
-def html_portfolio_value(title="Portfolio Price Trend"):
+def html_portfolio_timeseries(title="Portfolio Price Trend"):
     """
-    TODO: Compute overall portfolio values in case of "Overall" selected, add this to distinct stocks
-    :param title:
-    :return:
+    Shows a panel of dropdown elements on the left hand side, where the user is able to filter the data
+    on a specific stock (also overall portfolio) and a timespan, which should be displayed.
+    On the right hand side a timeseries chart of the performance of the selected stock is shown during
+    the selected time span.
+    :param title: Title of the tab
+    :return: html element of the tab
     """
 
     dropdown_timespan = dcc.Dropdown(options=[
@@ -173,12 +182,14 @@ def html_portfolio_value(title="Portfolio Price Trend"):
                                     id="dropdown-timespan",
 
     )
+    stock_default = "Overall Portfolio"
     distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+    distinct_stocks.append(stock_default)
 
     dropdown_stocks = dcc.Dropdown(options=[
         {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
     ],
-        value=distinct_stocks[0],
+        value=stock_default,
         id="dropdown-stocks"
     )
     dropdown_panel = html.Div([html.H2("Choose a timeframe"),
@@ -231,14 +242,10 @@ def timeseries_chart(timespan, stock_name):
     :param stock_name: Name of stock, that should be displayed
     :return:
     """
-    (orders, prices) = pl.prepare_orderAmounts_prices(df_orders)
-
-    df_date_sorted = pl.filter_portfolio_date(orders, timespan)
+    df_date_sorted = pl.filter_portfolio_date(df_timeseries, timespan)
     df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
 
-    df_timeseries = pl.prepare_timeseries(df_sorted, prices)
-
-    return(dpl.plot_stock_linechart(df_timeseries))
+    return(dpl.plot_stock_linechart(df_sorted))
 
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because

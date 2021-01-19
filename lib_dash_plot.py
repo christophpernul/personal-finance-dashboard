@@ -81,7 +81,8 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
                       legend=dict(x=0.01, y=0.99, title=""),
                       paper_bgcolor = theme_colors['background'],
                       font_color = theme_colors['text'],
-                      title_font_size = 22
+                      title_font_size = 22,
+                      height=720
                       )
     content = html.Div(
         dcc.Graph(

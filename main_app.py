@@ -60,11 +60,12 @@ def switch_tabs(tab):
                                                           agg_functions,
                                                           cost_column_name="Value",
                                                           title="Overall Portfolio",
-                                                          title_kpi_cost="Total Value"
+                                                          title_kpi_cost="Total Value",
+                                                          show_last_updated=True
                                                           )
         return(html_div)
     elif tab == "tab-timeseries":
-        html_div = apps_portfolio.html_portfolio_value()
+        html_div = apps_portfolio.html_portfolio_timeseries()
         return(html_div)
     elif tab == "tab-crypto":
         html_div = html.Div("No content yet!")

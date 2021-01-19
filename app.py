@@ -25,3 +25,5 @@ df_etf = pl.preprocess_etf_masterdata(df_etf_init)
 orders_etf = pl.enrich_orders(df_orders, df_etf)
 portfolio_monthly = pl.get_current_portfolio(orders_etf)
 portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
+
+df_timeseries = pl.prepare_timeseries(df_orders)

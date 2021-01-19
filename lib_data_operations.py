@@ -204,7 +204,7 @@ def get_portfolio_value(df_trx: pd.DataFrame, df_prices: pd.DataFrame) -> pd.Dat
     df = df.drop("Price", axis=1)
 
     df_portfolio = df.merge(dfp, how="left", left_on="ISIN", right_on="ISIN", suffixes=["", "_y"])\
-                        .drop("Date_y", axis=1)
+                        .rename(columns={"Date_y": "last_price_update"})
     assert (df_portfolio["Price"].isna().sum()>0).any() == False, "Prices are missing for a transaction!"
     df_portfolio["Value"] = round(df_portfolio["Amount"] * df_portfolio["Price"], 2)
 
@@ -253,14 +253,64 @@ def prepare_orderAmounts_prices(orders: pd.DataFrame):
     df_orders = df_orders[necessary_columns]
     return((df_orders, prices))
 
-def prepare_timeseries(orders_filtered: pd.DataFrame, prices: pd.DataFrame):
+
+def prepare_timeseries(orders: pd.DataFrame):
     """
-    TODO: Compute overall portfolio values in case of "Overall" selected
-    :param orders_filtered:
-    :param prices:
+    Computes timeseries chart (value/investment vs date) for all stocks in the portfolio.
+    Computes timeseries chart for overall portfolio (sum of all stock values at given date) and adds it
+    to the dataframe.
+    :param orders: dataframe, containing Investmentamount, ordercost and price for each stock per transactiondate
     :return:
     """
-    orders_filtered = orders_filtered.sort_values("Date").drop(["Date", "Name"], axis=1).cumsum()
-    orders_filtered = orders_filtered.merge(prices, how="inner", left_index=True, right_index=True)
-    orders_filtered["Value"] = orders_filtered["Amount"] * orders_filtered["Price"]
-    return(orders_filtered)
+    necessary_columns = ["Date", "Name", "Investment", "Price", "Ordercost"]
+    assert set(orders.columns).intersection(set(necessary_columns)) == set(necessary_columns), \
+        "Necessary columns missing in order data for timeseries preparation!"
+    orders["Amount"] = orders["Investment"]/orders["Price"]
+    ### Map each transaction-date to the beginning of the month for easier comparison
+    orders["Date"] = orders["Date"] - pd.offsets.MonthBegin(1)
+
+    ### Prepare master data of all stocks and dates in order history
+    ### TODO: Refine all data preprocessing to just once define master data for all needed tasks
+    all_stocks = pd.DataFrame(orders["Name"].drop_duplicates()).copy()
+    all_stocks["key"] = 0
+    all_dates = pd.DataFrame(orders["Date"].drop_duplicates()).copy()
+    all_dates["key"] = 0
+    all_combinations = pd.merge(all_dates, all_stocks, on='key').drop("key", axis=1)
+
+    ### Prepare dataframe, that gets converted to a timeseries, it has entries of all stocks, that were
+    ### bought in the past at each transaction-date (stock data for stocks, which were not bought at that date,
+    ### is filled with 0 to enable correct computation of cumsum()
+    group_columns = ["Investment", "Ordercost", "Amount"]
+    df_init = all_combinations.merge(orders[["Date", "Name"] + group_columns], how="left",
+                                     left_on=["Date", "Name"],
+                                     right_on=["Date", "Name"]
+                                     ).fillna(0).copy()
+    price_lookup = orders[["Date", "Name", "Price"]].copy()
+
+    ### Compute cumsum() per stockgroup and rejoin date
+    df_grouped = df_init.sort_values("Date").groupby("Name").cumsum()
+    df_grouped_all = df_init.merge(df_grouped, how="left",
+                                   left_index=True,
+                                   right_index=True,
+                                   suffixes=["_init", None]
+                                   )
+    df_grouped_all = df_grouped_all.drop(["Investment_init", "Ordercost_init", "Amount_init"], axis=1)
+    ### Rejoin prices and compute values for each stock at each date, fill values of stocks, which were not
+    ### bought at that date again with 0s
+    df_grouped_all = df_grouped_all.merge(price_lookup, how="left",
+                                          left_on=["Date", "Name"],
+                                          right_on=["Date", "Name"],
+                                          suffixes=[None, "_y"]
+                                          )
+    df_grouped_all["Value"] = df_grouped_all["Amount"] * df_grouped_all["Price"]
+    df_grouped_all = df_grouped_all.drop(["Amount", "Price"], axis=1)#.fillna(0)
+
+    ### Finally sum over stock values at each date to arrive at timeseries format
+    df_overall = df_grouped_all.sort_values("Date").set_index("Date")\
+                                                        .drop(["Name"], axis=1)\
+                                                        .groupby("Date").sum() \
+                                                        .reset_index()
+    df_overall["Name"] = "Overall Portfolio"
+    df_timeseries = pd.concat([df_grouped_all, df_overall], ignore_index=True, sort=False)
+    return(df_timeseries)
+
