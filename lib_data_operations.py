@@ -34,7 +34,40 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ
     else:
         return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init, None))
 
-def preprocess_cashflow(df_init):
+def preprocess_cashflow(df_input):
+    """
+
+    :param df_init:
+    :return:
+    """
+    import numpy as np
+    assert df_input.drop("Description",
+                        axis=1).isna().sum().sum() == 0, \
+        f"There are NaN values in inputfile: {path_data}{filename_cashflow}"
+    ### Data cleaning
+    df_init = df_input.copy()
+    df_init['Date'] = pd.to_datetime(df_init['Date'], format='%m/%d/%y')
+    df_init.drop(columns=['Account', 'Currency', 'Main currency', 'Description'], inplace=True)
+    df_init['Expense amount'] = df_init['Expense amount'].str.replace(',', '')
+    df_init['Income amount'] = df_init['Income amount'].str.replace(',', '').astype(np.float64)
+    df_init['In main currency'] = df_init['In main currency'].str.replace(',', '')
+    df_init['Expense amount'] = df_init['Expense amount'].astype(np.float64)
+    df_init['In main currency'] = df_init['In main currency'].astype(np.float64)
+
+    ### Preprocessing of cashflow amounts
+    df_init['Main currency'] = pd.Series([-y if x > 0. else y
+                                          for x, y in zip(df_init['Expense amount'],
+                                                          df_init['In main currency']
+                                                          )
+                                          ]
+                                         )
+    assert df_init[(~df_init["Income amount"].isin(["0.0", "0"])) &
+                   (df_init["In main currency"] != df_init["Main currency"])
+                   ].count().sum() == 0, "Income amount does not match with main currency amount!"
+    assert df_init[(~df_init["Expense amount"].isin(["0.0", "0"])) &
+                   (-df_init["In main currency"] != df_init["Main currency"])
+                   ].count().sum() == 0, "Expense amount does not match with main currency amount!"
+    df_init.drop(['In main currency', 'Expense amount', 'Income amount'], axis=1, inplace=True)
     return(df_init)
 
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
