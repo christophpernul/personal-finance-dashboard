@@ -3,6 +3,7 @@ import pandas as pd
 def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ¼bersicht.ods",
               etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/master_data_stocks.ods",
               stock_price_data_absolute_path="/home/chris/Dropbox/Finance/data/stock_prices.ods",
+              cashflow_path = "/home/chris/Dropbox/Finance/data/data_cashflow/bilanz_full.csv",
               include_speculation=False):
     """
     Needs odfpy library to load .ods files!
@@ -12,6 +13,7 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ
     :param etf_master_data_absolute_path: path to master data of ETFs (filetype: .ods)
     :param stock_price_data_absolute_path: path to price data of ETFs (filetype: .ods)
     :param include_speculation: Whether orders of speculation portfolio should be included in output
+    :param cashflow_path: csv file of cashflow data
     :return: tupel of pd.DataFrames with portfolio transactions and master data
     """
     orders_portfolio = pd.read_excel(order_data_absolute_path, engine="odf",\
@@ -25,10 +27,15 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ
 
     etf_master = pd.read_csv(etf_master_data_absolute_path)
 
+    cashflow_init = pd.read_csv(cashflow_path)
+
     if include_speculation == True:
-        return ((etf_master, orders_portfolio, income, stock_prices, orders_speculation))
+        return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init, orders_speculation))
     else:
-        return ((etf_master, orders_portfolio, income, stock_prices, None))
+        return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init, None))
+
+def preprocess_cashflow(df_init):
+    return(df_init)
 
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
     """
