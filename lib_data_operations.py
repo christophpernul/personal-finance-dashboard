@@ -48,7 +48,6 @@ def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
 
 def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     """
-    Data cleaning (drop NaNs and rows with Kommentar = FAIL, which are wrong entries).
     Set datatypes of columns and split input into dividends transactions and savings-plan transactions.
     :param df_orders: Includes all transaction data of the portfolio, all columns in list portfolio_columns
                         need to be present, Kommentar column needs to be either "monatlich" (transaction of the
@@ -70,8 +69,6 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
 
     ### Keep only valid entries
     orders_portfolio = orders_portfolio[~orders_portfolio["Investment"].isna()]
-    ### Drop faulty entries where comment is empty
-    orders_portfolio = orders_portfolio[orders_portfolio["Kommentar"] != "FAIL"]
 
     assert set(orders_portfolio["Kommentar"].drop_duplicates()).difference(set(expected_comments)) == set(), \
         "Unerwartete Kommentare enthalten! Erwartet: {}".format(expected_comments)
