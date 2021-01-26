@@ -34,11 +34,11 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanz�
     else:
         return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init, None))
 
-def preprocess_cashflow(df_input):
+def cleaning_cashflow(df_input: pd.DataFrame) -> pd.DataFrame:
     """
-
-    :param df_init:
-    :return:
+    Data cleaning and preprocessing of cashflow data.
+    :param df_input: Multiple toshl monthly-exports appended into a single dataframe
+    :return: preprocessed dataframe
     """
     import numpy as np
     assert df_input.drop("Description",
@@ -55,20 +55,105 @@ def preprocess_cashflow(df_input):
     df_init['In main currency'] = df_init['In main currency'].astype(np.float64)
 
     ### Preprocessing of cashflow amounts
-    df_init['Main currency'] = pd.Series([-y if x > 0. else y
-                                          for x, y in zip(df_init['Expense amount'],
-                                                          df_init['In main currency']
-                                                          )
-                                          ]
-                                         )
+    df_init['Amount'] = pd.Series([-y if x > 0. else y
+                                   for x, y in zip(df_init['Expense amount'],
+                                                   df_init['In main currency']
+                                                    )
+                                   ]
+                                   )
     assert df_init[(~df_init["Income amount"].isin(["0.0", "0"])) &
-                   (df_init["In main currency"] != df_init["Main currency"])
+                   (df_init["In main currency"] != df_init["Amount"])
                    ].count().sum() == 0, "Income amount does not match with main currency amount!"
     assert df_init[(~df_init["Expense amount"].isin(["0.0", "0"])) &
-                   (-df_init["In main currency"] != df_init["Main currency"])
+                   (-df_init["In main currency"] != df_init["Amount"])
                    ].count().sum() == 0, "Expense amount does not match with main currency amount!"
-    df_init.drop(['In main currency', 'Expense amount', 'Income amount'], axis=1, inplace=True)
-    return(df_init)
+
+    ### Drop entries with multiple tags into a single one by dropping the "Urlaub" tag
+    ### TODO: Include Urlaubs tags correctly again
+    # df_init["split_tags"] = df_init["Tags"].apply(lambda x: x.split(","))
+    # urlaub = df_init[df_init["split_tags"].apply(len) > 1].copy()
+    # df_init = df_init[df_init["split_tags"].apply(len) == 1]
+    df_init["Tags"] = df_init["Tags"].str.replace("Urlaub", "").str.replace(", ", "")
+
+
+    df_init = df_init[["Date", "Category", "Tags", "Amount"]]
+    return((df_init, None))
+
+def split_cashflow_data(df_cleaned: pd.DataFrame) -> pd.DataFrame:
+    """
+    Splits whole cashflow data into incomes and expenses and groups it monthly and sums amounts per tag
+    :param df_cleaned: Cleaned dataframe of cashflow
+    :return: Tuple of dataframes holding incomes and expenses, each grouped by month
+    """
+    needed_columns = ["Tags", "Date", "Amount"]
+    assert set(needed_columns).intersection(set(df_cleaned.columns)) == set(needed_columns), \
+        "Columns missing! Need: {0}, Have: {1}".format(needed_columns, list(df_cleaned.columns))
+
+    df_grouped = df_cleaned.groupby([pd.Grouper(key='Date', freq='1M'), 'Tags']).sum()
+
+    incomes = df_grouped[df_grouped["Amount"] > 0.].copy()
+    expenses = df_grouped[df_grouped["Amount"] <= 0.].copy()
+
+    return((incomes, expenses))
+
+def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remap tags of input data to custom categories, and change the format of the dataframe in order to
+    easily to computations and plots of the cashflow data.
+    :param df: Dataframe, holding either incomes or expenses (cleaned) and grouped by month (tags as rows)
+    :return: dataframe, where each row consists of cashflow data of of a month, each column represents a
+            custom category
+    """
+    assert isinstance(df.index, pd.core.indexes.multi.MultiIndex) and \
+            set(df.index.names) == set(["Date", "Tags"]) and \
+            list(df.columns) == ["Amount"], "Dataframe is not grouped by month!"
+    ### Define custom categories for all tags of Toshl: Make sure category names differ from tag-names,
+    ### otherwise column is dropped and aggregate is wrong
+    category_dict = {
+        "home": ['rent', 'insurance', 'Miete'],
+        "food_healthy": ['restaurants', 'Lebensmittel', 'groceries', 'Restaurants', 'Restaurant Mittag'],
+        "food_unhealthy": ['Fast Food', 'Süßigkeiten'],
+        "alcoholic_drinks": ['alcohol', 'Alkohol'],
+        "non-alcoholic_drinks": ['Kaffee und Tee', 'Erfrischungsgetränke', 'coffee & tea', 'soft drinks'],
+        "travel": ['sightseeing', 'Sightseeing', 'Beherbergung', 'accommodation', 'Urlaub', ''],
+        ### TODO: Empty tag '' originates from Urlaub, make this clean!
+        "transportation": ['bus', 'Bus', 'taxi', 'Taxi', 'metro', 'Metro', 'Eisenbahn', 'train', 'car',
+                          'Auto', 'parking', 'airplane', 'fuel', 'Flugzeug'],
+        "sports": ['training', 'Training', 'MoTu', 'Turnier', 'sport equipment', 'Billard', 'Konsum Training'],
+        "events_leisure_books_abos": ['events', 'Events', 'adult fun', 'Spaß für Erwachsene', 'games', 'sport venues',
+                                 'membership fees', 'apps', 'music', 'books'],
+        "clothes_medicine": ['clothes', 'accessories', 'cosmetics', 'medicine', 'hairdresser',
+                                  'medical services', 'medical servies', "shoes"],
+        "private_devices": ['devices', 'bike', 'bicycle', 'movies & TV', 'mobile phone', 'home improvement',
+                   'internet', 'landline phone', 'furniture'],
+        "presents": ['birthday', 'X-Mas'],
+        "other": ['Wechsel', 'wechsel', 'income tax', 'tuition', 'publications', 'Spende'],
+        "stocks": ['equity purchase']
+    }
+    from functools import reduce
+    category_list = reduce(lambda x, y: x + y, category_dict.values())
+
+
+    ### Need another format of the table, fill NaNs with zero and drop level 0 index "Amount"
+    pivot_init = df.unstack()
+    pivot_init.fillna(0, inplace=True)
+    pivot_init.columns = pivot_init.columns.droplevel()
+
+    if 'building upkeep' in pivot_init.columns:
+        building_upkeep = pivot_init['building upkeep']
+        pivot_init.drop(columns=['building upkeep'], inplace=True)
+
+    ### Apply custom category definition to dataframe
+    not_categorized = [tag for tag in pivot_init.columns if tag not in category_list]
+    assert len(not_categorized) == 0, "There are some tags, which are not yet categorized: {}".format(not_categorized)
+
+    pivot = pivot_init.copy()
+    for category, tag_list in category_dict.items():
+        tag_list_in_data = list(set(tag_list).intersection(set(pivot.columns)))
+        pivot[category] = pivot[tag_list_in_data].sum(axis=1)
+        pivot.drop(columns=tag_list_in_data, inplace=True)
+
+    return((building_upkeep, pivot_init))
 
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
     """
