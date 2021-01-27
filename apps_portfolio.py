@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from app import app, df_orders, df_timeseries
+from app import app, df_orders, df_timeseries, df_expenses
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -19,6 +19,75 @@ piechart_descriptions = [
     {'values': 'Percentage', 'names': 'Distributing', 'title': 'Distributing'},
     {'values': 'Percentage', 'names': 'Replicationmethod', 'title': 'Replicationmethod'}
 ]
+
+def html_cashflow_tab(title="Expenses"):
+    """
+    TODO: Docu and adoption!
+    :param title:
+    :return:
+    """
+
+    dropdown_timespan = dcc.Dropdown(options=[
+        {"label": "3 Months", "value": 3},
+        {"label": "6 Months", "value": 6},
+        {"label": "1 Year", "value": 12},
+        {"label": "Full", "value": -1}
+    ],
+        value=-1,
+        id="dropdown-timespan",
+
+    )
+    category_default = "Overall"
+    distinct_categories = sorted(list(df_expenses.columns))
+    distinct_categories.append(category_default)
+
+    dropdown_category = dcc.Dropdown(options=[
+                                                {"label": category, "value": category} for category in distinct_categories
+                                                ],
+                                        value=category_default,
+                                        id="dropdown-category"
+    )
+    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
+                               dropdown_timespan,
+                               html.Br(),
+                               html.H2("Choose a category"),
+                               dropdown_category,
+                               html.Br()
+                               ]
+                              )
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
+    graph_panel = html.Div(id="main-barchart")
+
+    html_content = html.Div(
+        dbc.Row([
+            dbc.Col(dropdown_panel,
+                    width=4,
+                    align='center'
+                    ),
+            dbc.Col(graph_panel,
+                    width=8,
+                    align='center'
+                    )
+        ],
+            justify='around'
+        )
+    )
+
+    heading = \
+        dbc.Card(
+            dbc.CardBody(
+                html.H1(html.B(title))
+            ),
+        )
+
+    html_page = html.Div([
+        heading,
+        html.Br(),
+        html_content
+    ])
+
+    return (html_page)
+
 
 def html_portfolio_overview(portfolio,
                             group_columns: list,
@@ -240,12 +309,29 @@ def timeseries_chart(timespan, stock_name):
     timespan.
     :param timespan: How many months into the past the data should range.
     :param stock_name: Name of stock, that should be displayed
-    :return:
+    :return: linechart HTML element
     """
     df_date_sorted = pl.filter_portfolio_date(df_timeseries, timespan)
     df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
 
     return(dpl.plot_stock_linechart(df_sorted))
+
+def barchart_expenses(timespan, category):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
+    (timespan, category). Shows a barchart of the selected expenses in the category for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :param category: Category for which expenses are shown
+    :return: barchart HTML element
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_expenses.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    return(dpl.plot_barchart(df_sorted))
+
 
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because
@@ -265,3 +351,17 @@ def specify_dropdowns(timespan: int, stock_name: str):
     html_div = timeseries_chart(timespan, stock_name)
     return (html_div)
 
+@app.callback(Output('main-barchart', 'children'),
+              [Input('dropdown-timespan', 'value'),
+                Input('dropdown-category', 'value')
+               ]
+              )
+def specify_dropdown_expenses(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_expenses(timespan, category)
+    return (html_div)

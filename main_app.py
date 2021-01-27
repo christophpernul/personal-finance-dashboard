@@ -11,7 +11,7 @@ import apps_portfolio
 
 tab_nav_bar = \
                     dbc.Tabs(id="tab-navbar",
-                             active_tab="tab-timeseries",
+                             active_tab="tab-expenses",
                              children=[
                                         dbc.Tab(label="Expenses", tab_id="tab-expenses"),
                                         dbc.Tab(label="Income", tab_id="tab-income"),
@@ -33,7 +33,7 @@ app.layout = dbc.Card(body)
               Input('tab-navbar', 'active_tab'))
 def switch_tabs(tab):
     if tab == "tab-expenses":
-        html_div = html.Div("No content yet!")
+        html_div = apps_portfolio.html_cashflow_tab()
         return(html_div)
     elif tab == "tab-income":
         html_div = html.Div("No content yet!")

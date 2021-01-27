@@ -153,7 +153,7 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         pivot[category] = pivot[tag_list_in_data].sum(axis=1)
         pivot.drop(columns=tag_list_in_data, inplace=True)
 
-    return((building_upkeep, pivot_init))
+    return((building_upkeep, pivot))
 
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
     """

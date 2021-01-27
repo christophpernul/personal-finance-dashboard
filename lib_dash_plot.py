@@ -90,3 +90,27 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
         )
     )
     return(content)
+
+def plot_barchart(df):
+    """
+    TODO: Make it pretty!
+    :param df:
+    :return:
+    """
+    df_chart = df.reset_index().copy()
+    tag_column = df_chart.columns[1]
+    df_chart = df_chart.rename(columns={tag_column: "Expenses"})
+    df_chart["Expenses"] = df_chart["Expenses"]*-1
+
+    try:
+        fig = px.bar(df_chart, x='Date', y='Expenses')
+    except:
+        ### In case the dataframe is empty, because there is no transaction in the specified timespan
+        fig = go.Figure()
+
+    content = html.Div(
+        dcc.Graph(
+            figure=fig
+        )
+    )
+    return(content)
