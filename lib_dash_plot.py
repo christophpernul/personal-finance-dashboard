@@ -79,6 +79,7 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
                       yaxis_title="Value",
                       font_size=17,
                       legend=dict(x=0.01, y=0.99, title=""),
+                      plot_bgcolor=theme_colors['background'],
                       paper_bgcolor = theme_colors['background'],
                       font_color = theme_colors['text'],
                       title_font_size = 22,
@@ -91,23 +92,39 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
     )
     return(content)
 
-def plot_barchart(df):
+def plot_barchart(df, theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
     """
-    TODO: Make it pretty!
-    :param df:
+    Makes a barchart plot of the dataframe df, where x-axis is a date and y-axis is cashflow (expenses
+    or incomes). Adds a horizontal line (average of specified time-interval) to the chart.
+    :param df: pd.DataFrame, holding a Date column and another column with cashflow data
     :return:
     """
     df_chart = df.reset_index().copy()
+    ## Take first column: cannot specify name, because in case of overall displaying, the column has no name
     tag_column = df_chart.columns[1]
     df_chart = df_chart.rename(columns={tag_column: "Expenses"})
     df_chart["Expenses"] = df_chart["Expenses"]*-1
-
+    average = df_chart["Expenses"].mean()
     try:
         fig = px.bar(df_chart, x='Date', y='Expenses')
+        fig.add_trace(go.Scatter(
+            x = df_chart["Date"],
+            y = [average for _ in range(len(df_chart))],
+            mode="lines",
+            line=dict(color='#1cbced'),
+            name="Average"
+        )
+        )
+        fig.update_traces(marker_color="red")
     except:
         ### In case the dataframe is empty, because there is no transaction in the specified timespan
         fig = go.Figure()
-
+    fig.update_layout(plot_bgcolor=theme_colors['background'],
+                      paper_bgcolor=theme_colors['background'],
+                      font_color=theme_colors['text'],
+                      font_size=17,
+                      hoverlabel=dict(font=dict(color='black'))
+                      )
     content = html.Div(
         dcc.Graph(
             figure=fig

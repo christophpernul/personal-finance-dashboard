@@ -68,16 +68,18 @@ def cleaning_cashflow(df_input: pd.DataFrame) -> pd.DataFrame:
                    (-df_init["In main currency"] != df_init["Amount"])
                    ].count().sum() == 0, "Expense amount does not match with main currency amount!"
 
-    ### Drop entries with multiple tags into a single one by dropping the "Urlaub" tag
-    ### TODO: Include Urlaubs tags correctly again
-    # df_init["split_tags"] = df_init["Tags"].apply(lambda x: x.split(","))
-    # urlaub = df_init[df_init["split_tags"].apply(len) > 1].copy()
-    # df_init = df_init[df_init["split_tags"].apply(len) == 1]
-    df_init["Tags"] = df_init["Tags"].str.replace("Urlaub", "").str.replace(", ", "")
-
+    ### Remap all tags with category "Urlaub" to "old-tag, Urlaub" and map afterwards all double-tags
+    ### containing "Urlaub" to the Urlaub tag
+    df_init.loc[df_init["Category"] == "Urlaub", "Tags"] = df_init["Tags"].apply(lambda tag: tag + ", Urlaub")
+    df_init["split_tags"] = df_init["Tags"].apply(lambda x: x.split(","))
+    assert df_init[df_init["split_tags"].apply(len) > 1]["split_tags"].apply(lambda x: \
+                                                                             "Urlaub" in [s.strip() for s in x]
+                                                                             ).all() == True,\
+            'Some entries with multiple tags do not contain "Urlaub"! Mapping not possible!'
+    df_init.loc[df_init["split_tags"].apply(len) > 1, "Tags"] = "Urlaub"
 
     df_init = df_init[["Date", "Category", "Tags", "Amount"]]
-    return((df_init, None))
+    return(df_init)
 
 def split_cashflow_data(df_cleaned: pd.DataFrame) -> pd.DataFrame:
     """
@@ -115,8 +117,7 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         "food_unhealthy": ['Fast Food', 'Süßigkeiten'],
         "alcoholic_drinks": ['alcohol', 'Alkohol'],
         "non-alcoholic_drinks": ['Kaffee und Tee', 'Erfrischungsgetränke', 'coffee & tea', 'soft drinks'],
-        "travel": ['sightseeing', 'Sightseeing', 'Beherbergung', 'accommodation', 'Urlaub', ''],
-        ### TODO: Empty tag '' originates from Urlaub, make this clean!
+        "travel_vacation": ['sightseeing', 'Sightseeing', 'Beherbergung', 'accommodation', 'Urlaub'],
         "transportation": ['bus', 'Bus', 'taxi', 'Taxi', 'metro', 'Metro', 'Eisenbahn', 'train', 'car',
                           'Auto', 'parking', 'airplane', 'fuel', 'Flugzeug'],
         "sports": ['training', 'Training', 'MoTu', 'Turnier', 'sport equipment', 'Billard', 'Konsum Training'],

@@ -21,7 +21,7 @@ server = app.server
 (df_orders, _) = pl.preprocess_orders(df_orders_init)
 df_prices = pl.preprocess_prices(df_prices_init)
 df_etf = pl.preprocess_etf_masterdata(df_etf_init)
-(df_cashflow, _) = pl.cleaning_cashflow(df_cashflow_init)
+df_cashflow = pl.cleaning_cashflow(df_cashflow_init)
 (incomes, expenses) = pl.split_cashflow_data(df_cashflow)
 (_, df_expenses) = pl.preprocess_cashflow(expenses)
 

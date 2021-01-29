@@ -22,9 +22,13 @@ piechart_descriptions = [
 
 def html_cashflow_tab(title="Expenses"):
     """
-    TODO: Docu and adoption!
-    :param title:
-    :return:
+    Displays the tab with cashflow data by using dropdowns to specify timespan and category:
+    Top left: Title of the tab
+    Top right: KPI panel with average cashflow in given timeframe and for specified category
+    Left: Dropdown elements for timespan and category
+    Right: Barchart showing cashflow over time, updated by dropdowns including average cashflow (same as KPI)
+    :param title: Title of the tab
+    :return: html element of the tab
     """
 
     dropdown_timespan = dcc.Dropdown(options=[
@@ -57,6 +61,7 @@ def html_cashflow_tab(title="Expenses"):
                               )
     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="main-barchart")
+    html_average = html.H2(id="kpi-average")
 
     html_content = html.Div(
         dbc.Row([
@@ -74,14 +79,37 @@ def html_cashflow_tab(title="Expenses"):
     )
 
     heading = \
-        dbc.Card(
-            dbc.CardBody(
-                html.H1(html.B(title))
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    html.H1(html.B(title))
+                ),
+            ),
+            width=6,
+            align='center'
+        )
+    kpi_box = \
+        html.Div(
+            dbc.Row(
+                [dbc.Col(html.H2("Average Expenses")),
+                 dbc.Col(html_average)],
+                justify='around'
             ),
         )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(
+                html.Div([kpi_box])
+            ),
+        ),
+        width=6,
+        align='center'
+    )
+
+    header_panel = dbc.Row([heading, kpi_panel], justify='around')
 
     html_page = html.Div([
-        heading,
+        header_panel,
         html.Br(),
         html_content
     ])
@@ -341,7 +369,7 @@ def barchart_expenses(timespan, category):
                 Input('dropdown-stocks', 'value')
                ]
               )
-def specify_dropdowns(timespan: int, stock_name: str):
+def dropdown_timeseries_chart(timespan: int, stock_name: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
     :param timespan: Amount of months into past, that should be visible in the plot
@@ -356,7 +384,7 @@ def specify_dropdowns(timespan: int, stock_name: str):
                 Input('dropdown-category', 'value')
                ]
               )
-def specify_dropdown_expenses(timespan: int, category: str):
+def dropdown_expenses_chart(timespan: int, category: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
     :param timespan: Amount of months into past, that should be visible in the plot
@@ -364,4 +392,26 @@ def specify_dropdown_expenses(timespan: int, category: str):
     :return: html element of a timeseries plot
     """
     html_div = barchart_expenses(timespan, category)
+    return (html_div)
+
+@app.callback(Output('kpi-average', 'children'),
+              [Input('dropdown-timespan', 'value'),
+                Input('dropdown-category', 'value')
+               ]
+              )
+def dropdown_expenses_average(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_expenses.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    average = -df_sorted.mean()
+    html_div = html.B(f"{average:.2f} €")
     return (html_div)
