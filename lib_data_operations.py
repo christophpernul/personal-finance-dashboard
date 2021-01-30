@@ -156,6 +156,27 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
 
     return((building_upkeep, pivot))
 
+def preprocess_income(toshl_income, excel_income):
+    """
+    Combines two data sources of incomes: toshl incomes and incomes from cashflow excel.
+    :param toshl_income: Preprocessed dataframe of toshl incomes (after cleaning and splitting)
+    :param excel_income: Raw excel income data
+    :return: Total income data
+    """
+    df_in = toshl_income.reset_index().copy()
+    df_in["Tags"] = df_in["Tags"].apply(lambda x: "Salary" if x in ["Privat", "NHK", "OL"] else x)
+
+    df_in2 = excel_income.copy()
+    df_in2 = df_in2[["Datum", "Art", "Betrag"]].rename(columns={"Datum": "Date",
+                                                                "Art": "Tags",
+                                                                "Betrag": "Amount"}).dropna()
+    df_in2["Date"] = pd.to_datetime(df_in2["Date"], format="%d.%m.%Y")
+    df_in2["Tags"] = df_in2["Tags"].apply(lambda x: "Salary" if x in ["Gehalt", "Sodexo"] else x)
+
+    df_income = pd.concat([df_in, df_in2], ignore_index=True)
+    assert df_income.count()[0] == df_in.count()[0] + df_in2.count()[0], "Some income rows were lost!"
+    return(df_income)
+
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
     """
     Preprocessing of price dataframe. Get latest available price.
