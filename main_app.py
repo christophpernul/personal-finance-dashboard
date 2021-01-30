@@ -18,7 +18,8 @@ tab_nav_bar = \
                                         dbc.Tab(label="Monthly Plan", tab_id="tab-portfolio-overview"),
                                         dbc.Tab(label="Portfolio Statistics", tab_id="tab-portfolio-value"),
                                         dbc.Tab(label="Portfolio Timeseries", tab_id="tab-timeseries"),
-                                        dbc.Tab(label="Cryptocurrencies", tab_id="tab-crypto")
+                                        dbc.Tab(label="Cryptocurrencies", tab_id="tab-crypto"),
+                                        dbc.Tab(label="Savings", tab_id="tab-savings")
                                       ],
                              card=True
                              )
@@ -68,6 +69,9 @@ def switch_tabs(tab):
         html_div = apps_portfolio.html_portfolio_timeseries()
         return(html_div)
     elif tab == "tab-crypto":
+        html_div = html.Div("No content yet!")
+        return(html_div)
+    elif tab == "tab-savings":
         html_div = html.Div("No content yet!")
         return(html_div)
 
