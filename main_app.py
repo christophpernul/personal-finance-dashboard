@@ -33,10 +33,10 @@ app.layout = dbc.Card(body)
               Input('tab-navbar', 'active_tab'))
 def switch_tabs(tab):
     if tab == "tab-expenses":
-        html_div = apps_portfolio.html_cashflow_tab()
+        html_div = apps_portfolio.html_expenses_tab()
         return(html_div)
     elif tab == "tab-income":
-        html_div = html.Div("No content yet!")
+        html_div = apps_portfolio.html_income_tab()
         return(html_div)
     elif tab == "tab-portfolio-overview":
         group_cols = ["Region", "Type", "Distributing", "Replicationmethod"]

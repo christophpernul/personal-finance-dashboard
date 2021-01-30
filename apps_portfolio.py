@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from app import app, df_orders, df_timeseries, df_expenses
+from app import app, df_orders, df_timeseries, df_expenses, df_incomes
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -20,13 +20,13 @@ piechart_descriptions = [
     {'values': 'Percentage', 'names': 'Replicationmethod', 'title': 'Replicationmethod'}
 ]
 
-def html_cashflow_tab(title="Expenses"):
+def html_expenses_tab(title="Expenses"):
     """
-    Displays the tab with cashflow data by using dropdowns to specify timespan and category:
+    Displays the tab with expenses data by using dropdowns to specify timespan and category:
     Top left: Title of the tab
-    Top right: KPI panel with average cashflow in given timeframe and for specified category
+    Top right: KPI panel with average expenses in given timeframe and for specified category
     Left: Dropdown elements for timespan and category
-    Right: Barchart showing cashflow over time, updated by dropdowns including average cashflow (same as KPI)
+    Right: Barchart showing cashflow over time, updated by dropdowns including average expenses (same as KPI)
     :param title: Title of the tab
     :return: html element of the tab
     """
@@ -92,6 +92,102 @@ def html_cashflow_tab(title="Expenses"):
         html.Div(
             dbc.Row(
                 [dbc.Col(html.H2("Average Expenses")),
+                 dbc.Col(html_average)],
+                justify='around'
+            ),
+        )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(
+                html.Div([kpi_box])
+            ),
+        ),
+        width=6,
+        align='center'
+    )
+
+    header_panel = dbc.Row([heading, kpi_panel], justify='around')
+
+    html_page = html.Div([
+        header_panel,
+        html.Br(),
+        html_content
+    ])
+
+    return (html_page)
+
+def html_income_tab(title="Income"):
+    """
+    Displays the tab with income data by using dropdowns to specify timespan and category:
+    Top left: Title of the tab
+    Top right: KPI panel with average income in given timeframe and for specified category
+    Left: Dropdown elements for timespan and category
+    Right: Barchart showing income over time, updated by dropdowns including average income (same as KPI)
+    :param title: Title of the tab
+    :return: html element of the tab
+    """
+
+    dropdown_timespan = dcc.Dropdown(options=[
+        {"label": "3 Months", "value": 3},
+        {"label": "6 Months", "value": 6},
+        {"label": "1 Year", "value": 12},
+        {"label": "Full", "value": -1}
+    ],
+        value=-1,
+        id="dropdown-timespan-income",
+
+    )
+    category_default = "Overall"
+    distinct_categories = sorted(list(df_incomes.columns))
+    distinct_categories.append(category_default)
+
+    dropdown_category = dcc.Dropdown(options=[
+                                                {"label": category, "value": category} for category in distinct_categories
+                                                ],
+                                        value=category_default,
+                                        id="dropdown-category-income"
+    )
+    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
+                               dropdown_timespan,
+                               html.Br(),
+                               html.H2("Choose a category"),
+                               dropdown_category,
+                               html.Br()
+                               ]
+                              )
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
+    graph_panel = html.Div(id="main-barchart-income")
+    html_average = html.H2(id="kpi-average-income")
+
+    html_content = html.Div(
+        dbc.Row([
+            dbc.Col(dropdown_panel,
+                    width=4,
+                    align='center'
+                    ),
+            dbc.Col(graph_panel,
+                    width=8,
+                    align='center'
+                    )
+        ],
+            justify='around'
+        )
+    )
+
+    heading = \
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    html.H1(html.B(title))
+                ),
+            ),
+            width=6,
+            align='center'
+        )
+    kpi_box = \
+        html.Div(
+            dbc.Row(
+                [dbc.Col(html.H2("Average Income")),
                  dbc.Col(html_average)],
                 justify='around'
             ),
@@ -358,7 +454,23 @@ def barchart_expenses(timespan, category):
     else:
         assert category in df_expenses.columns, "Category not in columns of dataframe!"
         df_sorted = df_date_sorted[category]
-    return(dpl.plot_barchart(df_sorted))
+    return(dpl.plot_barchart(df_sorted, "Expenses"))
+
+def barchart_income(timespan, category):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
+    (timespan, category). Shows a barchart of the selected income in the category for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :param category: Category for which income is shown
+    :return: barchart HTML element
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_incomes.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    return(dpl.plot_barchart(df_sorted, "Income"))
 
 
 ########################################### CALLBACK FUNCTIONS #########################################################
@@ -413,5 +525,42 @@ def dropdown_expenses_average(timespan: int, category: str):
         assert category in df_expenses.columns, "Category not in columns of dataframe!"
         df_sorted = df_date_sorted[category]
     average = -df_sorted.mean()
+    html_div = html.B(f"{average:.2f} €")
+    return (html_div)
+
+@app.callback(Output('main-barchart-income', 'children'),
+              [Input('dropdown-timespan-income', 'value'),
+                Input('dropdown-category-income', 'value')
+               ]
+              )
+def dropdown_income_chart(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_income(timespan, category)
+    return (html_div)
+
+@app.callback(Output('kpi-average-income', 'children'),
+              [Input('dropdown-timespan-income', 'value'),
+                Input('dropdown-category-income', 'value')
+               ]
+              )
+def dropdown_income_average(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_incomes.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    average = df_sorted.mean()
     html_div = html.B(f"{average:.2f} €")
     return (html_div)

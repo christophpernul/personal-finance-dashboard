@@ -128,8 +128,13 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         "private_devices": ['devices', 'bike', 'bicycle', 'movies & TV', 'mobile phone', 'home improvement',
                    'internet', 'landline phone', 'furniture'],
         "presents": ['birthday', 'X-Mas'],
-        "other": ['Wechsel', 'wechsel', 'income tax', 'tuition', 'publications', 'Spende'],
-        "stocks": ['equity purchase']
+        "other": ['wechsel', 'income tax', 'tuition', 'publications', 'Spende'],
+        "stocks": ['equity purchase'],
+        #### Income categories
+        "compensation_caution": ["Entschädigung"],
+        "salary": ["Salary", "Gehalt Vorschuss"],
+        "present": ["Geschenk"],
+        "tax_compensation": ["Kirchensteuer Erstattung", "Steuerausgleich"]
     }
     from functools import reduce
     category_list = reduce(lambda x, y: x + y, category_dict.values())
@@ -140,9 +145,15 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
     pivot_init.fillna(0, inplace=True)
     pivot_init.columns = pivot_init.columns.droplevel()
 
+    #### Extract expenses and incomes from building-upkeep (caution) when switching flats
     if 'building upkeep' in pivot_init.columns:
         building_upkeep = pivot_init['building upkeep']
         pivot_init.drop(columns=['building upkeep'], inplace=True)
+    elif 'Wechsel' in pivot_init.columns:
+        building_upkeep = pivot_init['Wechsel']
+        pivot_init.drop(columns=['Wechsel'], inplace=True)
+    else:
+        building_upkeep = None
 
     ### Apply custom category definition to dataframe
     not_categorized = [tag for tag in pivot_init.columns if tag not in category_list]
@@ -154,9 +165,15 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         pivot[category] = pivot[tag_list_in_data].sum(axis=1)
         pivot.drop(columns=tag_list_in_data, inplace=True)
 
+    ### Keep only categories with non-zero total amount in dataframe
+    category_sum = pivot.sum().reset_index()
+    nonzero_categories = list(category_sum[category_sum[0] != 0.]["Tags"])
+
+    pivot = pivot[nonzero_categories]
+
     return((building_upkeep, pivot))
 
-def preprocess_income(toshl_income, excel_income):
+def combine_incomes(toshl_income, excel_income):
     """
     Combines two data sources of incomes: toshl incomes and incomes from cashflow excel.
     :param toshl_income: Preprocessed dataframe of toshl incomes (after cleaning and splitting)
@@ -175,6 +192,9 @@ def preprocess_income(toshl_income, excel_income):
 
     df_income = pd.concat([df_in, df_in2], ignore_index=True)
     assert df_income.count()[0] == df_in.count()[0] + df_in2.count()[0], "Some income rows were lost!"
+
+    df_income = df_income.groupby([pd.Grouper(key='Date', freq='1M'), 'Tags']).sum()
+
     return(df_income)
 
 def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:

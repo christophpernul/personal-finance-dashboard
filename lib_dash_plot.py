@@ -92,21 +92,24 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
     )
     return(content)
 
-def plot_barchart(df, theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
+def plot_barchart(df, title, theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
     """
     Makes a barchart plot of the dataframe df, where x-axis is a date and y-axis is cashflow (expenses
     or incomes). Adds a horizontal line (average of specified time-interval) to the chart.
     :param df: pd.DataFrame, holding a Date column and another column with cashflow data
+    :param title: Specify whether the chart shows Expenses or Income
     :return:
     """
+    assert title in ["Expenses", "Income"], 'Title of barchart has to be in ["Expenses", "Income"]!'
     df_chart = df.reset_index().copy()
     ## Take first column: cannot specify name, because in case of overall displaying, the column has no name
     tag_column = df_chart.columns[1]
-    df_chart = df_chart.rename(columns={tag_column: "Expenses"})
-    df_chart["Expenses"] = df_chart["Expenses"]*-1
-    average = df_chart["Expenses"].mean()
+    df_chart = df_chart.rename(columns={tag_column: title})
+    if title == "Expenses":
+        df_chart[title] = df_chart[title]*-1
+    average = df_chart[title].mean()
     try:
-        fig = px.bar(df_chart, x='Date', y='Expenses')
+        fig = px.bar(df_chart, x='Date', y=title)
         fig.add_trace(go.Scatter(
             x = df_chart["Date"],
             y = [average for _ in range(len(df_chart))],
@@ -115,7 +118,10 @@ def plot_barchart(df, theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
             name="Average"
         )
         )
-        fig.update_traces(marker_color="red")
+        if title == "Expenses":
+            fig.update_traces(marker_color="red")
+        else:
+            fig.update_traces(marker_color="green")
     except:
         ### In case the dataframe is empty, because there is no transaction in the specified timespan
         fig = go.Figure()
