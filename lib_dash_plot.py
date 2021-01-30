@@ -131,6 +131,11 @@ def plot_barchart(df, title, theme_colors={'background':"#32383E", 'text': "#FFF
                       font_size=17,
                       hoverlabel=dict(font=dict(color='black'))
                       )
+    fig.update_yaxes(gridwidth=0.5,
+                     gridcolor="grey",
+                     showgrid=True
+                     )
+
     content = html.Div(
         dcc.Graph(
             figure=fig
