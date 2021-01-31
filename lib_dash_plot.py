@@ -92,7 +92,7 @@ def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", '
     )
     return(content)
 
-def plot_barchart(df, title, theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
+def plot_barchart(df, title, x_axis = "Date", theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
     """
     Makes a barchart plot of the dataframe df, where x-axis is a date and y-axis is cashflow (expenses
     or incomes). Adds a horizontal line (average of specified time-interval) to the chart.
@@ -109,15 +109,17 @@ def plot_barchart(df, title, theme_colors={'background':"#32383E", 'text': "#FFF
         df_chart[title] = df_chart[title]*-1
     average = df_chart[title].mean()
     try:
-        fig = px.bar(df_chart, x='Date', y=title)
-        fig.add_trace(go.Scatter(
-            x = df_chart["Date"],
-            y = [average for _ in range(len(df_chart))],
-            mode="lines",
-            line=dict(color='#1cbced'),
-            name="Average"
-        )
-        )
+        fig = px.bar(df_chart.sort_values(x_axis), x=x_axis, y=title)
+        if x_axis == "Date":
+            ### Plot average only for barchart over time, not for a single month
+            fig.add_trace(go.Scatter(
+                x = df_chart[x_axis],
+                y = [average for _ in range(len(df_chart))],
+                mode="lines",
+                line=dict(color='#1cbced'),
+                name="Average"
+            )
+            )
         if title == "Expenses":
             fig.update_traces(marker_color="red")
         else:

@@ -30,7 +30,7 @@ def html_expenses_tab(title="Expenses"):
     :param title: Title of the tab
     :return: html element of the tab
     """
-
+    #### Upper panel: 2 Dropdowns: timespan & category
     dropdown_timespan = dcc.Dropdown(options=[
         {"label": "3 Months", "value": 3},
         {"label": "6 Months", "value": 6},
@@ -59,17 +59,50 @@ def html_expenses_tab(title="Expenses"):
                                html.Br()
                                ]
                               )
+
+    distinct_months = sorted(list(set([idx for idx in df_expenses.index])))[::-1]
+    month_default = distinct_months[0]
+
+    ### Lower panel: Dropdown month
+    dropdown_month = dcc.Dropdown(options=[
+                                                {"label": str(timestamp.month_name()) + " " + str(timestamp.year),
+                                                 "value": timestamp
+                                                 } for timestamp in distinct_months
+                                            ],
+                                    value=month_default,
+                                    id="dropdown-month"
+    )
+    dropdown_panel_month = html.Div([html.H2("Choose a month"),
+                               dropdown_month
+                               ]
+                              )
     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="main-barchart")
     html_average = html.H2(id="kpi-average")
+    graph_panel_month = html.Div(id="barchart-month")
 
-    html_content = html.Div(
+    upper_panel = html.Div(
         dbc.Row([
             dbc.Col(dropdown_panel,
                     width=4,
                     align='center'
                     ),
             dbc.Col(graph_panel,
+                    width=8,
+                    align='center'
+                    )
+        ],
+            justify='around'
+        )
+    )
+
+    lower_panel = html.Div(
+        dbc.Row([
+            dbc.Col(dropdown_panel_month,
+                    width=4,
+                    align='center'
+                    ),
+            dbc.Col(graph_panel_month,
                     width=8,
                     align='center'
                     )
@@ -111,7 +144,9 @@ def html_expenses_tab(title="Expenses"):
     html_page = html.Div([
         header_panel,
         html.Br(),
-        html_content
+        upper_panel,
+        html.Br(),
+        lower_panel
     ])
 
     return (html_page)
@@ -456,6 +491,18 @@ def barchart_expenses(timespan, category):
         df_sorted = df_date_sorted[category]
     return(dpl.plot_barchart(df_sorted, "Expenses"))
 
+def barchart_month(month):
+    """
+    Displays the content of the barchart of expenses in the selected month.
+    :param month: pd.Timestamp of last day of selected month in dropdown
+    :return: barchart HTML element
+    """
+    import pandas as pd
+    df_month = df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month].set_index("Date").copy()
+    df_chart = pd.DataFrame(df_month.stack()).rename(columns={0:"Expenses"}).reset_index()
+    df_chart = df_chart[["Tags", "Expenses"]].set_index("Tags")
+    return(dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags"))
+
 def barchart_income(timespan, category):
     """
     Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
@@ -526,6 +573,18 @@ def dropdown_expenses_average(timespan: int, category: str):
         df_sorted = df_date_sorted[category]
     average = -df_sorted.mean()
     html_div = html.B(f"{average:.2f} €")
+    return (html_div)
+
+@app.callback(Output('barchart-month', 'children'),
+              Input('dropdown-month', 'value')
+              )
+def dropdown_month_barchart(month):
+    """
+    Get the content element for the barchart for the given dropdown selection (month).
+    :param month: pd.Timestamp, timestamp of last day in selected month
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_month(month)
     return (html_div)
 
 @app.callback(Output('main-barchart-income', 'children'),
