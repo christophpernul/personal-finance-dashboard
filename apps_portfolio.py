@@ -145,7 +145,7 @@ def html_expenses_tab(title="Expenses"):
         header_panel,
         html.Br(),
         upper_panel,
-        html.Br(),
+        html.Hr(style={"color": "#FFFFFF", "border": "1px solid"}),
         lower_panel
     ])
 
