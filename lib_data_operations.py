@@ -431,7 +431,7 @@ def prepare_timeseries(orders: pd.DataFrame):
         "Necessary columns missing in order data for timeseries preparation!"
     orders["Amount"] = orders["Investment"]/orders["Price"]
     ### Map each transaction-date to the beginning of the month for easier comparison
-    orders["Date"] = orders["Date"] - pd.offsets.MonthBegin(1)
+    orders["Date"] = orders["Date"].apply(lambda date: pd.offsets.MonthBegin().rollback(date))
 
     ### Prepare master data of all stocks and dates in order history
     ### TODO: Refine all data preprocessing to just once define master data for all needed tasks
