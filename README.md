@@ -18,7 +18,7 @@ This tab shows average monthly expenses, as well as a more detailled analysis of
     - Category: Expenses are categorized (custom definition)
 - Barchart for expenses per category in a selected month
 
-![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/finance_dashboard_expenses.png?raw=true)
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_expenses.png)
 
 ## 2. Overview of monthly income
 
@@ -26,7 +26,7 @@ This tab shows average monthly income as well as a barchart, that can be customi
 - Timeframe: How many months into the past should be displayed?
 - Category: Expenses are categorized (custom definition)
 
-![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/finance_dashboard_income.png?raw=true)
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_income.png?raw=true)
 
 ## 3. Overview of monthly ETF savings plan
 
@@ -36,18 +36,18 @@ total expense ratio (TER), region and further ETF properties as well as the inve
 A KPI panel shows average cost and investment per month. Furthermore interesting portfolio statistics, like  
  distribution across regions (diversification), types and replicationmethods are shown as piecharts at the bottom.
 
-![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/finance_dashboard_monthlyPlan.png?raw=true)
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_monthlyPlan.png?raw=true)
 
 ## 4. Overview of overall portfolio value
 
 It is similar to the previous tab, only that it shows the analysis for the overall portfolio and the total most recent
 value.
 
-![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/finance_dashboard_overallPortfolio.png?raw=true)
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_overallPortfolio.png?raw=true)
 
 ## 5. Timeseries of portfolio value
 
 The time-series of the overall portfolio value is shown together with the total amount of investment accumulated.
 The time-series chart can be filtered for a specific timeframe as well as for certain ETF's only.
 
-![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/finance_dashboard_portfolioTimeseries.png?raw=true)
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_portfolioTimeseries.png?raw=true)
