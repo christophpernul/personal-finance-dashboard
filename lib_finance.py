@@ -2,13 +2,14 @@ import requests
 import os
 from bs4 import BeautifulSoup
 from datetime import date
+import json
+import pandas as pd
 
 def update_cashflow_data():
     """
     Loads all existing raw files of cashflow per month, appends them and saves them in a single csv.
     :return:
     """
-    import pandas as pd
     base_path = "/home/chris/Dropbox/Finance/data/data_cashflow/"
     raw_data_path = os.path.join(base_path, "raw/")
     out_filename = "bilanz_full"
@@ -130,3 +131,60 @@ def get_master_data(isin_list):
         stock_dict["ISIN"] = isin
         stock_list.append(stock_dict)
     return (stock_list)
+
+def get_current_cryptocurrency_price(num_pages=5) -> pd.DataFrame:
+    """
+    Scrape current price of cryptocurrencies from https://www.coinmarketcap.com/ and convert it to Euro.
+    :param num_pages: Each page holds 100 cryptos with highest capitalization per default.
+    :return: dataframe with Euro-price of cryptocurrency with name and symbol (ticker)
+    """
+    base_url = "https://www.coinmarketcap.com/"
+    price_list, name_list, symbol_list = [], [], []
+
+    # website has several pages of 100 cryptos each
+    for page in range(num_pages):
+        url = base_url if page == 0 else base_url + str(page+1)
+        r = requests.get(url)
+        assert r.status_code == requests.codes.ok, f"Bad request to {url}!"
+        html = r.content.decode("utf-8")
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # Thx to  https://towardsdatascience.com/web-scraping-crypto-prices-with-python-41072ea5b5bf
+        # for the tip of using the script part of the website:
+        data = json.loads(soup.find("script", id="__NEXT_DATA__", type="application/json").contents[0])
+        price_data = data["props"]["initialState"]["cryptocurrency"]["listingLatest"]["data"]
+
+        for coin in price_data:
+            coin_name = coin["name"]
+            coin_symbol = coin["symbol"]
+            coin_price = coin["quote"]["USD"]["price"]
+            assert coin_name not in name_list, "Coin is already in list!"
+            name_list.append(coin_name)
+            price_list.append(coin_price)
+            symbol_list.append(coin_symbol)
+    df_prices = pd.DataFrame({"name": name_list,
+                              "symbol": symbol_list,
+                              "price": price_list
+                              })
+
+    conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
+    df_prices["price"] = df_prices["price"]*conversion_rate
+    return(df_prices)
+
+def conversion_rate_usDollar_euro(dollar_to_euro=True) -> float:
+    """
+    Uses https://www.finanzen.net to convert US-dollars $ to Euro € and vice versa.
+    :param dollar_to_euro: boolean flag, whether to convert dollars to euro
+    :return: conversion rate
+    """
+    date_today = date.today().strftime(format="%Y-%m-%d")
+    if dollar_to_euro == True:
+        url = f"https://www.finanzen.net/ajax/currencyConverter_Exchangerate/USD/EUR/{date_today}"
+    else:
+        url = f"https://www.finanzen.net/ajax/currencyConverter_Exchangerate/EUR/USD/{date_today}"
+
+    r = requests.post(url)
+    assert r.status_code == requests.codes.ok, "Could not convert $ to €!"
+    conversion = float(json.loads(r.content)[0])
+
+    return(conversion)
