@@ -139,7 +139,8 @@ def get_current_cryptocurrency_price(num_pages=5) -> pd.DataFrame:
     :return: dataframe with Euro-price of cryptocurrency with name and symbol (ticker)
     """
     base_url = "https://www.coinmarketcap.com/"
-    price_list, name_list, symbol_list = [], [], []
+    price_list, name_list, symbol_list, coin_volume_list = [], [], [], []
+    coin_change = [[], [], [], []]
 
     # website has several pages of 100 cryptos each
     for page in range(num_pages):
@@ -158,17 +159,34 @@ def get_current_cryptocurrency_price(num_pages=5) -> pd.DataFrame:
             coin_name = coin["name"]
             coin_symbol = coin["symbol"]
             coin_price = coin["quote"]["USD"]["price"]
-            assert coin_name not in name_list, "Coin is already in list!"
+            coin_volume = coin["quote"]["USD"]["volume_24h"]
+            coin_change_1h = coin["quote"]["USD"]["percent_change_1h"]
+            coin_change_24h = coin["quote"]["USD"]["percent_change_24h"]
+            coin_change_7d = coin["quote"]["USD"]["percent_change_7d"]
+            coin_change_30d = coin["quote"]["USD"]["percent_change_30d"]
+
+            # assert coin_name not in name_list, "Coin is already in list!"
             name_list.append(coin_name)
             price_list.append(coin_price)
             symbol_list.append(coin_symbol)
+            coin_volume_list.append(coin_volume)
+            coin_change[0].append(coin_change_1h)
+            coin_change[1].append(coin_change_24h)
+            coin_change[2].append(coin_change_7d)
+            coin_change[3].append(coin_change_30d)
     df_prices = pd.DataFrame({"name": name_list,
                               "symbol": symbol_list,
-                              "price": price_list
+                              "price": price_list,
+                              "volume_24h": coin_volume_list,
+                              "change_%_1h": coin_change[0],
+                              "change_%_24h": coin_change[1],
+                              "change_%_7d": coin_change[2],
+                              "change_%_30d": coin_change[3]
                               })
 
     conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
     df_prices["price"] = df_prices["price"]*conversion_rate
+    df_prices["volume_24h"] = df_prices["volume_24h"] * conversion_rate
     return(df_prices)
 
 def conversion_rate_usDollar_euro(dollar_to_euro=True) -> float:
