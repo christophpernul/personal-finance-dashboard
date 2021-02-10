@@ -9,6 +9,32 @@ Dashboard giving an overview of personal finances. It contains multiple tabs:
 The dashboard was built using Python Plotly Dash:[https://dash.plotly.com/]()
 
 ## Input data schemata
+- finanzübersicht.ods (libreOffice calc)
+    - Sheet: 3.2 Portfolio langfristig Transactions
+        Columns: 
+            "Index": Index for a single savings plans execution (integer, is empty in case of dividend payments)
+            "Datum": Date of execution (dd.MM.yyyy)
+            "Kurs": Price of stock (xx.xx)
+            "Betrag": Amount (€) of investment per execution (xx.xx)
+            "Kosten": Costs (ordercost in xx.xx)
+            "Anbieter": Brokername
+            "Name": Name of stock
+            "ISIN": ISIN of stock
+            "Art": Type of investment (should be "ETF Sparplan" for savings plan)
+            "Kommentar": Should be "monatlich" for savings-plan entry and "Dividende" for a dividend payment
+    - Sheet: 3.4 Spekulation Transactions
+            not used atm
+    - Sheet: 3.3 Income Transactions
+            "Datum": Date of income transaction (dd.MM.yyyy)
+            "Art": Type of income ("Gehalt")
+            "Betrag": amount (xx.xx)
+- stock_prices.ods ((libreOffice calc)
+        - created with script "update_finance_data.py"
+- master_data_stocks.ods (libreOffice calc)
+        - created with script "update_finance_data.py"
+- bilanz_full.csv
+        - Multiple monthly Toshl export files are appended into a single file
+            The app assumes, that you use a single category and a single tag for each entry. The tags are later remapped to custom categories, that are more useful.
 
 ## 1. Overview of monthly expenses
 
