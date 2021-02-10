@@ -69,7 +69,7 @@ def switch_tabs(tab):
         html_div = apps_portfolio.html_portfolio_timeseries()
         return(html_div)
     elif tab == "tab-crypto":
-        html_div = html.Div("No content yet!")
+        html_div = apps_portfolio.html_crypto_overview()
         return(html_div)
     elif tab == "tab-savings":
         html_div = html.Div("No content yet!")

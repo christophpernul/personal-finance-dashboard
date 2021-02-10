@@ -19,7 +19,7 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanz√
     orders_portfolio = pd.read_excel(order_data_absolute_path, engine="odf",\
                                                                 sheet_name="3.2 Portfolio langfristig Transactions")
     orders_speculation = pd.read_excel(order_data_absolute_path, engine="odf",\
-                                                                sheet_name="3.3 Spekulation Transactions")
+                                                                sheet_name="3.4 Spekulation Transactions")
 
     income = pd.read_excel(order_data_absolute_path, engine="odf", sheet_name="3.3 Income Transactions")
 

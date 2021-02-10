@@ -519,6 +519,39 @@ def barchart_income(timespan, category):
         df_sorted = df_date_sorted[category]
     return(dpl.plot_barchart(df_sorted, "Income"))
 
+def html_crypto_overview(title="Cryptocurrencies"):
+    value = html.H2(str(123))#id="crypto-value")
+    heading = \
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    html.H1(html.B(title))
+                ),
+            ),
+            width=6,
+            align='center'
+        )
+    kpi_box = \
+        html.Div(
+            dbc.Row(
+                [dbc.Col(html.H2("Average Expenses")),
+                 dbc.Col(value)],
+                justify='around'
+            ),
+        )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(
+                html.Div([kpi_box])
+            ),
+        ),
+        width=6,
+        align='center'
+    )
+
+    header_panel = dbc.Row([heading, kpi_panel], justify='around')
+    return(html.Div(header_panel))
+
 
 ########################################### CALLBACK FUNCTIONS #########################################################
 # These callback functions need to be defined outside of the function, which uses it, because
