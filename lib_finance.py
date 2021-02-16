@@ -132,7 +132,7 @@ def get_master_data(isin_list):
         stock_list.append(stock_dict)
     return (stock_list)
 
-def get_current_cryptocurrency_price(num_pages=5) -> pd.DataFrame:
+def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFrame:
     """
     Scrape current price of cryptocurrencies from https://www.coinmarketcap.com/ and convert it to Euro.
     :param num_pages: Each page holds 100 cryptos with highest capitalization per default.
@@ -183,10 +183,10 @@ def get_current_cryptocurrency_price(num_pages=5) -> pd.DataFrame:
                               "change_%_7d": coin_change[2],
                               "change_%_30d": coin_change[3]
                               })
-
-    conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
-    df_prices["price"] = df_prices["price"]*conversion_rate
-    df_prices["volume_24h"] = df_prices["volume_24h"] * conversion_rate
+    if currency == "EUR":
+        conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
+        df_prices["price"] = df_prices["price"]*conversion_rate
+        df_prices["volume_24h"] = df_prices["volume_24h"] * conversion_rate
     return(df_prices)
 
 def conversion_rate_usDollar_euro(dollar_to_euro=True) -> float:

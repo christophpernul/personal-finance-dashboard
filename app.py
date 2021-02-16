@@ -7,6 +7,7 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 import dash
 import dash_bootstrap_components as dbc
 import lib_data_operations as pl
+import lib_finance as lf
 
 app = dash.Dash(__name__,
                 title="Finance App",
@@ -16,7 +17,9 @@ app = dash.Dash(__name__,
 server = app.server
 
 ################################ Data Processing for ETF portfolio #####################################################
-(df_etf_init, df_orders_init, df_income_init, df_prices_init, df_cashflow_init, _) = pl.load_data()
+(df_etf_init, df_orders_init, df_income_init, df_prices_init, \
+ df_cashflow_init, _, df_crypto_deposits, df_crypto_trades_init) = pl.load_data()
+crypto_prices = lf.get_current_cryptocurrency_price(currency="EUR")
 
 (df_orders, _) = pl.preprocess_orders(df_orders_init)
 df_prices = pl.preprocess_prices(df_prices_init)
@@ -31,4 +34,8 @@ orders_etf = pl.enrich_orders(df_orders, df_etf)
 portfolio_monthly = pl.get_current_portfolio(orders_etf)
 portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
 
+portfolio_crypto = pl.compute_crypto_portfolio(df_crypto_deposits, df_crypto_trades_init)
+portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)
+
 df_timeseries = pl.prepare_timeseries(df_orders)
+
