@@ -335,9 +335,10 @@ def compute_crypto_portfolio(df_deposits_init, df_trades_init):
     crypto_portfolio = df_all.groupby(["exchange", "currency"]).sum().reset_index()
     return(crypto_portfolio)
 
-def compute_crypto_portfolio_value(portfolio, prices):
+def compute_crypto_portfolio_value(portfolio: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
     """
-    Combines current crypto-price data with portfolio and computes value per currency.
+    Combines current crypto-price data with portfolio and computes value per exchange/currency.
+    Adds the overall portfolio value with exchange-name "Overall" to the data.
     :param portfolio: Holds crypto portfolio data (exchange, currency, amount)
     :param prices: Holds prices and masterdata of cryptos (name, symbol, price)
     :return: Value of portfolio per cryptocurrency
@@ -345,9 +346,15 @@ def compute_crypto_portfolio_value(portfolio, prices):
     portfolio_all = portfolio.merge(prices, left_on="currency", right_on="symbol").copy()
     portfolio_all = portfolio_all[["exchange", "currency", "name", "amount", "price"]]
 
-    portfolio_all.loc[:, "value"] = portfolio_all["amount"] * portfolio_all["price"]
+    portfolio_all.loc[:, "value"] = round(portfolio_all["amount"] * portfolio_all["price"], 3)
 
-    portfolio_value = portfolio_all.groupby(["currency"]).sum().sort_values("value", ascending=False)["value"]
+    portfolio_all = portfolio_all.drop("price", axis=1)
+
+    portfolio_overall = portfolio_all.groupby(["currency", "name"]).sum().reset_index()
+    portfolio_overall["exchange"] = "Overall"
+
+    portfolio_value = portfolio_all.append(portfolio_overall, ignore_index=True, sort=False)
+
     return(portfolio_value)
 
 

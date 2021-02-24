@@ -4,7 +4,7 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from app import app, df_orders, df_timeseries, df_expenses, df_incomes
+from app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto, portfolio_crypto_value
 import lib_data_operations as pl
 import lib_dash_plot as dpl
 
@@ -519,8 +519,25 @@ def barchart_income(timespan, category):
         df_sorted = df_date_sorted[category]
     return(dpl.plot_barchart(df_sorted, "Income"))
 
-def html_crypto_overview(title="Cryptocurrencies"):
-    value = html.H2(str(123))#id="crypto-value")
+def html_crypto_overview(title="Cryptocurrencies",
+                         title_kpi="Total Value"):
+    """
+    Shows a KPI element with the total crypto-portfolio value as well as a dropdown element.
+    By selecting a crypto-exchange (or "Overall" for the overall portfolio), a dataframe is displayed, that shows
+    all cryptocurrencies on that exchange with the current value in Euro.
+    :param title: Title of the tab
+    :param title_kpi: Title of the KPI element
+    :return: html element of the tab
+    """
+    ################################ Prepare data for remainder ########################################################
+    ### Prepare KPI content
+    from datetime import datetime
+    date_today = datetime.now().strftime(format="%Y-%m-%d %H:%M:%S")
+    title_kpi += " (" + date_today + ")"
+    total_value = portfolio_crypto_value[portfolio_crypto_value["exchange"] == "Overall"]["value"].sum()
+    value_show = str(round(total_value, 2)) + " €"
+
+    ################################ Define Dash App configuration #####################################################
     heading = \
         dbc.Col(
             dbc.Card(
@@ -534,8 +551,8 @@ def html_crypto_overview(title="Cryptocurrencies"):
     kpi_box = \
         html.Div(
             dbc.Row(
-                [dbc.Col(html.H2("Average Expenses")),
-                 dbc.Col(value)],
+                [dbc.Col(html.H2(title_kpi)),
+                 dbc.Col(html.H2(html.B(value_show)))],
                 justify='around'
             ),
         )
@@ -550,7 +567,41 @@ def html_crypto_overview(title="Cryptocurrencies"):
     )
 
     header_panel = dbc.Row([heading, kpi_panel], justify='around')
-    return(html.Div(header_panel))
+
+    ### Body panel
+    exchange_default = "Overall"
+    distinct_exchanges = sorted(list(portfolio_crypto_value["exchange"].drop_duplicates().sort_values()))
+
+    dropdown_exchange = dcc.Dropdown(options=[
+        {"label": exchange, "value": exchange} for exchange in distinct_exchanges
+    ],
+        value=exchange_default,
+        id="dropdown-crypto-exchange"
+    )
+    dropdown_panel = \
+    dbc.Card(
+        dbc.CardBody(
+            html.Div([html.H2("Choose an exchange"),
+                      dropdown_exchange,
+                      ]
+                     )
+        )
+    )
+
+    dataframe_panel = \
+        dbc.Card(
+            dbc.CardBody(
+                html.Div(id="crypto-dataframe")
+            ),
+        )
+
+    tab_content = html.Div([header_panel,
+                            dropdown_panel,
+                            dataframe_panel
+                            ]
+                           )
+
+    return(tab_content)
 
 
 ########################################### CALLBACK FUNCTIONS #########################################################
@@ -656,3 +707,17 @@ def dropdown_income_average(timespan: int, category: str):
     average = df_sorted.mean()
     html_div = html.B(f"{average:.2f} €")
     return (html_div)
+
+@app.callback(Output('crypto-dataframe', 'children'),
+              Input('dropdown-crypto-exchange', 'value'))
+def dropdown_crypto_exchange(exchange: str):
+    """
+    Render crypto-exchange dropdown to filter to dataframe, that should be displayed, for the overall portfolio
+    or a specfic exchange.
+    :param exchange: Name of exchange
+    :return: HTML element of the filtered dataframe to display
+    """
+    df_crypto_show = portfolio_crypto_value[portfolio_crypto_value["exchange"] == exchange]
+    df_crypto_show = df_crypto_show[["exchange", "currency", "name", "amount", "value"]]\
+                                    .sort_values("value",ascending=False)
+    return(dpl.show_dataframe(df_crypto_show, style_dict=theme_colors))

@@ -5,6 +5,7 @@ Dashboard giving an overview of personal finances. It contains multiple tabs:
 3. Overview of monthly ETF savings plan
 4. Overview of overall portfolio value
 5. Timeseries of portfolio value
+6. Overview of cryptocurrency portfolio
 
 The dashboard was built using Python Plotly Dash:[https://dash.plotly.com/]()
 
@@ -28,6 +29,28 @@ The dashboard was built using Python Plotly Dash:[https://dash.plotly.com/]()
             "Datum": Date of income transaction (dd.MM.yyyy)
             "Art": Type of income ("Gehalt")
             "Betrag": amount (xx.xx)
+- crypto_trades.ods (libreOffice calc)
+  - Sheet "Deposits": First two rows as header (skipped)
+        Columns:
+            "date": Date of deposit
+            "amount": Amount of currency deposited
+            "currency": Symbol of cryptocurrency
+            "price": Buy price
+            "fee %": Fee in Euro
+            "exchange": Crypto-Exchange name
+            "total price": Total price in Euro
+     - Sheet "Trades": First row as header (skipped)
+          Columns:
+              "date": Date of deposit
+              "amount_spent": Amount of currency spent (sold)
+              "currency_spent": Symbol of sold cryptocurrency
+              "amount_gained": Amount of currency gained (bought)
+              "currency_gained": Symbold of bought cryptocurrency
+              "fee comment": Comment about fees
+              "exchange 1": Crypto-Exchange of Sell action
+              "exchange 2": Crypto-Exchange of Buy action
+              "fee": transaction-fee in "fee currency"
+              "fee currency": Name of currency with which fee was paid
 - stock_prices.ods ((libreOffice calc)
         - created with script "update_finance_data.py"
 - master_data_stocks.ods (libreOffice calc)
@@ -77,3 +100,10 @@ The time-series of the overall portfolio value is shown together with the total 
 The time-series chart can be filtered for a specific timeframe as well as for certain ETF's only.
 
 ![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_portfolioTimeseries.png?raw=true)
+
+## 6. Overview of cryptocurrency portfolio
+
+The total value of all cryptocurrencies is displayed, together with an overview of each cryptocurrency's amount and value for the overall portfolio.
+When selecting a specific crypto-exchange platform in the dropdown menu, the displayed table is updated and shows only the cryptocurrencies lying on that specific exchange.
+
+![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_cryptoPortfolio.png?raw=true)
