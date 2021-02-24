@@ -159,11 +159,10 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
             coin_name = coin["name"]
             coin_symbol = coin["symbol"]
             coin_price = coin["quote"]["USD"]["price"]
-            coin_volume = coin["quote"]["USD"]["volume_24h"]
-            coin_change_1h = coin["quote"]["USD"]["percent_change_1h"]
-            coin_change_24h = coin["quote"]["USD"]["percent_change_24h"]
-            coin_change_7d = coin["quote"]["USD"]["percent_change_7d"]
-            coin_change_30d = coin["quote"]["USD"]["percent_change_30d"]
+            coin_volume = coin["quote"]["USD"]["volume24h"]
+            coin_change_1h = coin["quote"]["USD"]["percentChange1h"]
+            coin_change_24h = coin["quote"]["USD"]["percentChange24h"]
+            coin_change_7d = coin["quote"]["USD"]["percentChange7d"]
 
             # assert coin_name not in name_list, "Coin is already in list!"
             name_list.append(coin_name)
@@ -173,15 +172,13 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
             coin_change[0].append(coin_change_1h)
             coin_change[1].append(coin_change_24h)
             coin_change[2].append(coin_change_7d)
-            coin_change[3].append(coin_change_30d)
     df_prices = pd.DataFrame({"name": name_list,
                               "symbol": symbol_list,
                               "price": price_list,
                               "volume_24h": coin_volume_list,
                               "change_%_1h": coin_change[0],
                               "change_%_24h": coin_change[1],
-                              "change_%_7d": coin_change[2],
-                              "change_%_30d": coin_change[3]
+                              "change_%_7d": coin_change[2]
                               })
     if currency == "EUR":
         conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
