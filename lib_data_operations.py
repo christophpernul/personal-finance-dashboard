@@ -20,6 +20,7 @@ def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/por
     :return: tupel of pd.DataFrames with portfolio transactions and master data
     """
     orders_portfolio = pd.read_excel(portfolio_data_absolute_path, engine="odf", sheet_name="Buys")
+    dividends_portfolio = pd.read_excel(portfolio_data_absolute_path, engine="odf", sheet_name="Dividends")
     orders_speculation = pd.read_excel(stock_data_absolute_path, engine="odf", sheet_name="Buys")
 
     income = pd.read_excel(income_data_absolute_path, engine="odf")
@@ -34,10 +35,10 @@ def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/por
     df_crypto_trades = pd.read_excel(crypto_path, engine="odf", sheet_name="Trades", skiprows=1)
 
     if include_speculation == True:
-        return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init,
+        return ((etf_master, orders_portfolio, dividends_portfolio, income, stock_prices, cashflow_init,
                  orders_speculation, df_crypto_deposits, df_crypto_trades))
     else:
-        return ((etf_master, orders_portfolio, income, stock_prices, cashflow_init,
+        return ((etf_master, orders_portfolio, dividends_portfolio, income, stock_prices, cashflow_init,
                  None, df_crypto_deposits, df_crypto_trades))
 
 def cleaning_cashflow(df_input: pd.DataFrame) -> pd.DataFrame:
@@ -228,7 +229,6 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     :return: tuple of orders- and dividend transaction entries
     """
     orders_portfolio = df_orders.copy()
-    expected_comments = ['monatlich', 'Dividende']
     portfolio_columns = ["Index", "Datum", "Kurs", "Betrag", "Kosten", "Anbieter", "Name", "ISIN"]
     new_portfolio_columns = ["Index", "Date", "Price", "Investment", "Ordercost", "Depotprovider", "Name", "ISIN"]
     rename_columns = {key: value for key, value in zip(portfolio_columns, new_portfolio_columns)}
@@ -237,17 +237,10 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
 
     assert set(orders_portfolio.columns).intersection(set(new_portfolio_columns)) == set(new_portfolio_columns), \
             "Some necessary columns are missing in the input dataframe!"
-    assert orders_portfolio["Art"].dropna().drop_duplicates().count() == 1, "Mehrere Arten von Investments!"
-    assert orders_portfolio["Art"].dropna().drop_duplicates()[0] == "ETF Sparplan", "Falsche Investmentart!"
 
     ### Keep only valid entries
     orders_portfolio = orders_portfolio[~orders_portfolio["Investment"].isna()]
-
-    assert set(orders_portfolio["Kommentar"].drop_duplicates()).difference(set(expected_comments)) == set(), \
-        "Unerwartete Kommentare enthalten! Erwartet: {}".format(expected_comments)
-    #TODO: Change logic for dividends portfolio
-    dividends_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "Dividende"]
-    orders_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "monatlich"]
+    orders_portfolio = orders_portfolio[orders_portfolio["Art"] == "ETF Sparplan"]
 
     orders_portfolio = orders_portfolio[new_portfolio_columns]
     orders_portfolio = orders_portfolio[~orders_portfolio["Date"].isna()]
@@ -259,7 +252,7 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     orders_portfolio["Investment"] = -orders_portfolio["Investment"]
     orders_portfolio["Ordercost"] = -orders_portfolio["Ordercost"]
 
-    return ((orders_portfolio, dividends_portfolio))
+    return (orders_portfolio)
 
 
 def preprocess_etf_masterdata(df_master: pd.DataFrame) -> pd.DataFrame:

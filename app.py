@@ -17,11 +17,11 @@ app = dash.Dash(__name__,
 server = app.server
 
 ################################ Data Processing for ETF portfolio #####################################################
-(df_etf_init, df_orders_init, df_income_init, df_prices_init, \
+(df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
     df_cashflow_init, _, df_crypto_deposits_init, df_crypto_trades_init) = pl.load_data()
 crypto_prices = lf.get_current_cryptocurrency_price(currency="EUR")
 
-(df_orders, _) = pl.preprocess_orders(df_orders_init)
+df_orders = pl.preprocess_orders(df_orders_init)
 df_prices = pl.preprocess_prices(df_prices_init)
 df_etf = pl.preprocess_etf_masterdata(df_etf_init)
 df_cashflow = pl.cleaning_cashflow(df_cashflow_init)
