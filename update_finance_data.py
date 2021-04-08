@@ -3,6 +3,7 @@ import pandas as pd
 import os
 
 base_path = "/home/chris/Dropbox/Finance/data/"
+base_path_out = "/home/chris/Dropbox/Finance/data/generated/"
 fname_isin_full = "ETF_investing.ods"
 fname_regionMapping = "ETF_regionTypes.ods"
 fname_isin_needed = "finanzübersicht.ods"
@@ -17,16 +18,16 @@ dfn = pd.read_excel(base_path+fname_isin_needed, engine="odf", sheet_name="3.2 P
 isin_list = list(dfn["ISIN"].dropna().drop_duplicates())
 print("Length of ISIN list = ", len(isin_list))
 
-if fname_master_data in os.listdir(base_path):
-    df_master = pd.read_csv(base_path+fname_master_data)
+if fname_master_data in os.listdir(base_path_out):
+    df_master = pd.read_csv(base_path_out+fname_master_data)
 else:
     df_master = None
-if fname_regionMapping in os.listdir(base_path):
-    df_regions = pd.read_excel(base_path+fname_regionMapping, engine="odf")
+if fname_regionMapping in os.listdir(base_path_out):
+    df_regions = pd.read_excel(base_path_out+fname_regionMapping, engine="odf")
 else:
     df_regions = None
-if fname_price_data in os.listdir(base_path):
-    df_price = pd.read_csv(base_path+fname_price_data)
+if fname_price_data in os.listdir(base_path_out):
+    df_price = pd.read_csv(base_path_out+fname_price_data)
 else:
     df_price = None
 
@@ -39,7 +40,7 @@ if ~isinstance(df_regions, type(None)):
     master = master.merge(df_regions, how="left", left_on="ISIN", right_on="ISIN").drop("Name_y", axis=1)\
                     .rename(columns={"Name_x": "Name"})
 print("Write master data to file!")
-master.to_csv(base_path+fname_master_data, index=False)
+master.to_csv(base_path_out+fname_master_data, index=False)
 
 print("Extract stock prices from justetf.com!")
 price_dict = fdlib.get_prices(isin_list)
@@ -47,11 +48,11 @@ prices = pd.DataFrame(price_dict)
 assert prices.count()[0] == len(isin_list), "Too less rows!"
 print("Write price data to file!")
 if isinstance(df_price, type(None)):
-    prices.to_csv(base_path+fname_price_data, index=False)
+    prices.to_csv(base_path_out+fname_price_data, index=False)
 else:
     print("Price data already exists!")
     overlap = df_price.merge(prices, left_on="Date", right_on="Date", how="inner")
     assert overlap.count()[0] == 0, "Price data for this date already exists!"
     df_price_new = df_price.append(prices, ignore_index=True)
     assert df_price_new.count()[0] == df_price.count()[0] + prices.count()[0], "Appending prices failed!"
-    df_price_new.to_csv(base_path+fname_price_data, index=False)
+    df_price_new.to_csv(base_path_out+fname_price_data, index=False)

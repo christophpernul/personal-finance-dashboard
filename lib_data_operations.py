@@ -1,8 +1,10 @@
 import pandas as pd
 
-def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ¼bersicht.ods",
-              etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/master_data_stocks.ods",
-              stock_price_data_absolute_path="/home/chris/Dropbox/Finance/data/stock_prices.ods",
+def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/portfolio_trades.ods",
+              stock_data_absolute_path="/home/chris/Dropbox/Finance/data/stock_trades.ods",
+              income_data_absolute_path="/home/chris/Dropbox/Finance/data/income.ods",
+              etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/master_data_stocks.ods",
+              stock_price_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/stock_prices.ods",
               cashflow_path = "/home/chris/Dropbox/Finance/data/data_cashflow/bilanz_full.csv",
               crypto_path = "/home/chris/Dropbox/Finance/data/crypto_trades.ods",
               include_speculation=False):
@@ -17,12 +19,10 @@ def load_data(order_data_absolute_path="/home/chris/Dropbox/Finance/data/finanzÃ
     :param cashflow_path: csv file of cashflow data
     :return: tupel of pd.DataFrames with portfolio transactions and master data
     """
-    orders_portfolio = pd.read_excel(order_data_absolute_path, engine="odf",\
-                                                                sheet_name="3.2 Portfolio langfristig Transactions")
-    orders_speculation = pd.read_excel(order_data_absolute_path, engine="odf",\
-                                                                sheet_name="3.4 Spekulation Transactions")
+    orders_portfolio = pd.read_excel(portfolio_data_absolute_path, engine="odf", sheet_name="Buys")
+    orders_speculation = pd.read_excel(stock_data_absolute_path, engine="odf", sheet_name="Buys")
 
-    income = pd.read_excel(order_data_absolute_path, engine="odf", sheet_name="3.3 Income Transactions")
+    income = pd.read_excel(income_data_absolute_path, engine="odf")
 
     stock_prices = pd.read_csv(stock_price_data_absolute_path)
 
@@ -245,7 +245,7 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
 
     assert set(orders_portfolio["Kommentar"].drop_duplicates()).difference(set(expected_comments)) == set(), \
         "Unerwartete Kommentare enthalten! Erwartet: {}".format(expected_comments)
-
+    #TODO: Change logic for dividends portfolio
     dividends_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "Dividende"]
     orders_portfolio = orders_portfolio[orders_portfolio["Kommentar"] == "monatlich"]
 
