@@ -6,7 +6,7 @@ base_path = "/home/chris/Dropbox/Finance/data/"
 base_path_out = "/home/chris/Dropbox/Finance/data/generated/"
 fname_isin_full = "ETF_investing.ods"
 fname_regionMapping = "ETF_regionTypes.ods"
-fname_isin_needed = "finanzübersicht.ods"
+fname_isin_needed = "portfolio_trades.ods"
 fname_master_data = "master_data_stocks.ods"
 fname_price_data = "stock_prices.ods"
 
@@ -14,7 +14,7 @@ df_etfs = pd.read_excel(base_path+fname_isin_full, engine="odf", sheet_name="ETF
 isin_list_full = list(df_etfs["ISIN"].drop_duplicates())
 print("Length of full ISIN list = ", len(isin_list_full))
 
-dfn = pd.read_excel(base_path+fname_isin_needed, engine="odf", sheet_name="3.2 Portfolio langfristig Transactions")
+dfn = pd.read_excel(base_path+fname_isin_needed, engine="odf", sheet_name="Buys")
 isin_list = list(dfn["ISIN"].dropna().drop_duplicates())
 print("Length of ISIN list = ", len(isin_list))
 
