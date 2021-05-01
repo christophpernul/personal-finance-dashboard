@@ -6,7 +6,7 @@ def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/por
               etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/master_data_stocks.ods",
               stock_price_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/stock_prices.ods",
               cashflow_path = "/home/chris/Dropbox/Finance/data/data_cashflow/bilanz_full.csv",
-              crypto_path = "/home/chris/Dropbox/Finance/data/crypto_trades.ods",
+              crypto_path = "/home/chris/Dropbox/Finance/data/crypto/crypto_trades_manual.ods",
               include_speculation=False):
     """
     Needs odfpy library to load .ods files!
