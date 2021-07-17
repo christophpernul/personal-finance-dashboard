@@ -141,7 +141,8 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         "compensation_caution": ["Entschädigung"],
         "salary": ["Salary", "Gehalt Vorschuss"],
         "present": ["Geschenk"],
-        "tax_compensation": ["Kirchensteuer Erstattung", "Steuerausgleich"]
+        "tax_compensation": ["Kirchensteuer Erstattung", "Steuerausgleich"],
+        "investment_profit": ["Investing"]
     }
     from functools import reduce
     category_list = reduce(lambda x, y: x + y, category_dict.values())
