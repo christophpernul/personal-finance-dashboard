@@ -139,8 +139,6 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
     :return: dataframe with Euro-price of cryptocurrency with name and symbol (ticker)
     """
     base_url = "https://www.coinmarketcap.com/"
-    price_list, name_list, symbol_list, coin_volume_list = [], [], [], []
-    coin_change = [[], [], [], []]
 
     # website has several pages of 100 cryptos each
     for page in range(num_pages):
@@ -154,32 +152,37 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
         # for the tip of using the script part of the website:
         data = json.loads(soup.find("script", id="__NEXT_DATA__", type="application/json").contents[0])
         price_data = data["props"]["initialState"]["cryptocurrency"]["listingLatest"]["data"]
+        key_ordering = price_data[0]["keysArr"]
+        price_array = price_data[1:]
 
-        for coin in price_data:
-            coin_name = coin["name"]
-            coin_symbol = coin["symbol"]
-            coin_price = coin["quote"]["USD"]["price"]
-            coin_volume = coin["quote"]["USD"]["volume24h"]
-            coin_change_1h = coin["quote"]["USD"]["percentChange1h"]
-            coin_change_24h = coin["quote"]["USD"]["percentChange24h"]
-            coin_change_7d = coin["quote"]["USD"]["percentChange7d"]
+        # Create a key-map used to parse the response-json
+        key_map = {}
+        keys_to_parse = {"name": "name",
+                         "symbol": "symbol",
+                         "quote.USD.price": "price",
+                         "quote.USD.volume24h": "volume_24h",
+                         "quote.USD.percentChange1h": "change_%_1h",
+                         "quote.USD.percentChange24h": "change_%_24h",
+                         "quote.USD.percentChange7d": "change_%_7d"
+                         }
+        for idx, key in enumerate(key_ordering):
+            # json structure: price_data = list({"keysArr":[holds key names], "id": str, "excludeProps": []},
+            # [data coin 1], [data coin 2],...)
+            # idx is the index for the key-name in the json
+            if key in keys_to_parse.keys():
+                key_map[idx] = key
+        ## Parse coin data
+        coin_data = {key_map[key]: [] for key, _ in key_map.items()}
+        for coin_kpis in price_array:
+            for idx, entry in enumerate(coin_kpis):
+                if idx in key_map.keys():
+                    coin_data[key_map[idx]].append(coin_kpis[idx])
+        if page == 0:
+            df_prices = pd.DataFrame(coin_data).rename(columns=keys_to_parse)
+        else:
+            df_coin = pd.DataFrame(coin_data).rename(columns=keys_to_parse)
+            df_prices.append(df_coin)
 
-            # assert coin_name not in name_list, "Coin is already in list!"
-            name_list.append(coin_name)
-            price_list.append(coin_price)
-            symbol_list.append(coin_symbol)
-            coin_volume_list.append(coin_volume)
-            coin_change[0].append(coin_change_1h)
-            coin_change[1].append(coin_change_24h)
-            coin_change[2].append(coin_change_7d)
-    df_prices = pd.DataFrame({"name": name_list,
-                              "symbol": symbol_list,
-                              "price": price_list,
-                              "volume_24h": coin_volume_list,
-                              "change_%_1h": coin_change[0],
-                              "change_%_24h": coin_change[1],
-                              "change_%_7d": coin_change[2]
-                              })
     if currency == "EUR":
         conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
         df_prices["price"] = df_prices["price"]*conversion_rate

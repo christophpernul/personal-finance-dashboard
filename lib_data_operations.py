@@ -48,9 +48,7 @@ def cleaning_cashflow(df_input: pd.DataFrame) -> pd.DataFrame:
     :return: preprocessed dataframe
     """
     import numpy as np
-    assert df_input.drop("Description",
-                        axis=1).isna().sum().sum() == 0, \
-        f"There are NaN values in inputfile: {path_data}{filename_cashflow}"
+    assert df_input.drop("Description", axis=1).isna().sum().sum() == 0, f"There are NaN values in Toshl data!"
     ### Data cleaning
     df_init = df_input.copy()
     df_init['Date'] = pd.to_datetime(df_init['Date'], format='%m/%d/%y')
