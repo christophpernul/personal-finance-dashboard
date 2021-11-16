@@ -12,6 +12,7 @@ import apps_portfolio
 tab_nav_bar = \
                     dbc.Tabs(id="tab-navbar",
                              active_tab="tab-expenses",
+
                              children=[
                                         dbc.Tab(label="Expenses", tab_id="tab-expenses"),
                                         dbc.Tab(label="Income", tab_id="tab-income"),

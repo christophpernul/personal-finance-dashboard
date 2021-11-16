@@ -6,7 +6,7 @@ def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/por
               etf_master_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/master_data_stocks.ods",
               stock_price_data_absolute_path="/home/chris/Dropbox/Finance/data/generated/stock_prices.ods",
               cashflow_path = "/home/chris/Dropbox/Finance/data/data_cashflow/bilanz_full.csv",
-              crypto_path = "/home/chris/Dropbox/Finance/data/crypto/crypto_trades_manual.ods",
+              crypto_path = "/home/chris/Dropbox/Finance/data/crypto/exported/crypto_orders_longlist.csv",
               include_speculation=False):
     """
     Needs odfpy library to load .ods files!
@@ -31,15 +31,14 @@ def load_data(portfolio_data_absolute_path="/home/chris/Dropbox/Finance/data/por
 
     cashflow_init = pd.read_csv(cashflow_path)
 
-    df_crypto_deposits = pd.read_excel(crypto_path, engine="odf", sheet_name="Deposits", skiprows=2, usecols="A:G")
-    df_crypto_trades = pd.read_excel(crypto_path, engine="odf", sheet_name="Trades", skiprows=1)
+    df_crypto_trades = pd.read_csv(crypto_path)
 
     if include_speculation == True:
         return ((etf_master, orders_portfolio, dividends_portfolio, income, stock_prices, cashflow_init,
-                 orders_speculation, df_crypto_deposits, df_crypto_trades))
+                 orders_speculation, df_crypto_trades))
     else:
         return ((etf_master, orders_portfolio, dividends_portfolio, income, stock_prices, cashflow_init,
-                 None, df_crypto_deposits, df_crypto_trades))
+                 None, df_crypto_trades))
 
 def cleaning_cashflow(df_input: pd.DataFrame) -> pd.DataFrame:
     """
@@ -277,44 +276,43 @@ def preprocess_etf_masterdata(df_master: pd.DataFrame) -> pd.DataFrame:
     etf_master["Region"] = etf_master["Region"].fillna("").map(lambda x: "Emerging" if "Emerging" in x else x)
     return (etf_master)
 
-def preprocess_crypto_data(df_deposits, df_trades_init):
+def preprocess_crypto_data(df_trades_init):
     """
     Preprocessing of crypto deposits and trade history. Check if trade data is consistent.
-    :param df_deposits: Holds all deposits of cryptocurrencies.
     :param df_trades_init: Table of all trades between different cryptocurrencies.
     :return: tuple of cleaned deposits and trade overview dataframes
     """
-    df_deposits["date"] = pd.to_datetime(df_deposits["date"])
-    df_deposits = df_deposits[~df_deposits["currency"].isna()]
+    df_trades_init["date"] = pd.to_datetime(df_trades_init["date"])
+    # df_deposits = df_deposits[~df_deposits["currency"].isna()]
 
-    price_tolerance = 1e-8
-    for idx in df_trades_init.index:
-        if df_trades_init["exchange 1"].iloc[idx] != df_trades_init["exchange 2"].iloc[idx]:
-            if abs(df_trades_init["amount_spent"].iloc[idx] - df_trades_init["amount_gained"].iloc[idx] -
-                   df_trades_init["fee"].iloc[idx]) > price_tolerance:
-                print("Error in data! Amount spent does not equal gained with fees!")
+    # price_tolerance = 1e-8
+    # for idx in df_trades_init.index:
+    #     if df_trades_init["exchange 1"].iloc[idx] != df_trades_init["exchange 2"].iloc[idx]:
+    #         if abs(df_trades_init["amount_spent"].iloc[idx] - df_trades_init["amount_gained"].iloc[idx] -
+    #                df_trades_init["fee"].iloc[idx]) > price_tolerance:
+    #             print("Error in data! Amount spent does not equal gained with fees!")
+    #
+    # gain_columns = {
+    #     "date": "date",
+    #     "amount_gained": "amount",
+    #     "currency gained": "currency",
+    #     "exchange 2": "exchange"
+    # }
+    # spent_columns = {
+    #     "date": "date",
+    #     "amount_spent": "amount",
+    #     "currency spent": "currency",
+    #     "exchange 1": "exchange"
+    # }
+    # df_trades_cleaned = df_trades_init[gain_columns.keys()].rename(columns=gain_columns)
+    # df_spent = df_trades_init[spent_columns.keys()].rename(columns=spent_columns)
+    # df_spent["amount"] *= -1
+    #
+    # df_trades = df_trades_cleaned.append(df_spent, ignore_index=True)
 
-    gain_columns = {
-        "date": "date",
-        "amount_gained": "amount",
-        "currency gained": "currency",
-        "exchange 2": "exchange"
-    }
-    spent_columns = {
-        "date": "date",
-        "amount_spent": "amount",
-        "currency spent": "currency",
-        "exchange 1": "exchange"
-    }
-    df_trades_cleaned = df_trades_init[gain_columns.keys()].rename(columns=gain_columns)
-    df_spent = df_trades_init[spent_columns.keys()].rename(columns=spent_columns)
-    df_spent["amount"] *= -1
+    return(df_trades_init)
 
-    df_trades = df_trades_cleaned.append(df_spent, ignore_index=True)
-
-    return((df_deposits, df_trades))
-
-def compute_crypto_portfolio(df_deposits_init, df_trades_init):
+def compute_crypto_portfolio(df_trades_init):
     """
     Combines deposits and trades into a single dataframe and compute portfolio of currencies.
     :param df_deposits: preprocessed deposits of cryptocurrencies
