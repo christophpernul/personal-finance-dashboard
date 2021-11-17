@@ -276,54 +276,6 @@ def preprocess_etf_masterdata(df_master: pd.DataFrame) -> pd.DataFrame:
     etf_master["Region"] = etf_master["Region"].fillna("").map(lambda x: "Emerging" if "Emerging" in x else x)
     return (etf_master)
 
-def preprocess_crypto_data(df_trades_init):
-    """
-    Preprocessing of crypto deposits and trade history. Check if trade data is consistent.
-    :param df_trades_init: Table of all trades between different cryptocurrencies.
-    :return: tuple of cleaned deposits and trade overview dataframes
-    """
-    df_trades_init["date"] = pd.to_datetime(df_trades_init["date"])
-    # df_deposits = df_deposits[~df_deposits["currency"].isna()]
-
-    # price_tolerance = 1e-8
-    # for idx in df_trades_init.index:
-    #     if df_trades_init["exchange 1"].iloc[idx] != df_trades_init["exchange 2"].iloc[idx]:
-    #         if abs(df_trades_init["amount_spent"].iloc[idx] - df_trades_init["amount_gained"].iloc[idx] -
-    #                df_trades_init["fee"].iloc[idx]) > price_tolerance:
-    #             print("Error in data! Amount spent does not equal gained with fees!")
-    #
-    # gain_columns = {
-    #     "date": "date",
-    #     "amount_gained": "amount",
-    #     "currency gained": "currency",
-    #     "exchange 2": "exchange"
-    # }
-    # spent_columns = {
-    #     "date": "date",
-    #     "amount_spent": "amount",
-    #     "currency spent": "currency",
-    #     "exchange 1": "exchange"
-    # }
-    # df_trades_cleaned = df_trades_init[gain_columns.keys()].rename(columns=gain_columns)
-    # df_spent = df_trades_init[spent_columns.keys()].rename(columns=spent_columns)
-    # df_spent["amount"] *= -1
-    #
-    # df_trades = df_trades_cleaned.append(df_spent, ignore_index=True)
-
-    return(df_trades_init)
-
-def compute_crypto_portfolio(df_trades_init):
-    """
-    Combines deposits and trades into a single dataframe and compute portfolio of currencies.
-    :param df_deposits: preprocessed deposits of cryptocurrencies
-    :param df_trades: preprocessed trades of cryptocurrencies
-    :return: portfolio of cryptocurrencies: exchange, currency, amount
-    """
-    df_deposits = df_deposits_init[["exchange", "currency", "amount"]].copy()
-    df_trades = df_trades_init[["exchange", "currency", "amount"]].copy()
-    df_all = df_deposits.append(df_trades, ignore_index=True)
-    crypto_portfolio = df_all.groupby(["exchange", "currency"]).sum().reset_index()
-    return(crypto_portfolio)
 
 def compute_crypto_portfolio_value(portfolio: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
     """
@@ -333,12 +285,14 @@ def compute_crypto_portfolio_value(portfolio: pd.DataFrame, prices: pd.DataFrame
     :param prices: Holds prices and masterdata of cryptos (name, symbol, price)
     :return: Value of portfolio per cryptocurrency
     """
+
     portfolio_all = portfolio.merge(prices, left_on="currency", right_on="symbol").copy()
     portfolio_all = portfolio_all[["exchange", "currency", "name", "amount", "price"]]
 
-    portfolio_all.loc[:, "value"] = round(portfolio_all["amount"] * portfolio_all["price"], 3)
-
+    portfolio_all.loc[:, "value"] = round(portfolio_all["amount"] * portfolio_all["price"], 2)
     portfolio_all = portfolio_all.drop("price", axis=1)
+
+    portfolio_all = portfolio_all.groupby(["exchange", "currency", "name"]).sum().reset_index()
 
     portfolio_overall = portfolio_all.groupby(["currency", "name"]).sum().reset_index()
     portfolio_overall["exchange"] = "Overall"

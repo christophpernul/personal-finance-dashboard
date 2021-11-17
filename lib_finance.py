@@ -181,8 +181,9 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
             df_prices = pd.DataFrame(coin_data).rename(columns=keys_to_parse)
         else:
             df_coin = pd.DataFrame(coin_data).rename(columns=keys_to_parse)
-            df_prices.append(df_coin)
-
+            df_prices = df_prices.append(df_coin, ignore_index=True)
+    ## rename IOTA symbol to get in line with exchange-namings
+    df_prices["symbol"] = df_prices["symbol"].str.replace("MIOTA", "IOTA")
     if currency == "EUR":
         conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
         df_prices["price"] = df_prices["price"]*conversion_rate
