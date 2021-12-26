@@ -87,8 +87,12 @@ def get_master_data_stock(soup_base):
     ### Get metadata from infoboxes: Fondssize, TER
     infoboxes = soup_base.find_all("div", {"class": "infobox"})
     for box in infoboxes:
-        value = box.find_all("div", {"class": "val"})[0].text.replace(" ", "").replace("\n", "")
-        label = box.find_all("div", {"class": "vallabel"})[0].text.replace(" ", "").replace("\n", "")
+        try:
+            value = box.find_all("div", {"class": "val"})[0].text.replace(" ", "").replace("\n", "")
+            label = box.find_all("div", {"class": "vallabel"})[0].text.replace(" ", "").replace("\n", "")
+        except IndexError:
+            # IndexError: Box contains no div objects with classes val or label --> skip these boxes
+            continue
         if label == "Fondsgröße":
             assert value[:3] == "EUR", "Fondsgröße not given in EUR!"
             assert value[-4:] == "Mio.", "Fondsgröße not given in Mio EUR!"
