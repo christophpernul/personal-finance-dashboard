@@ -11,7 +11,7 @@ def update_cashflow_data():
     :return:
     """
     base_path = "/home/chris/Dropbox/Finance/data/data_cashflow/"
-    raw_data_path = os.path.join(base_path, "raw/")
+    raw_data_path = os.path.join(baget_current_cryptocurrency_pricese_path, "raw/")
     out_filename = "bilanz_full"
 
     all_data_filenames = sorted(os.listdir(path=raw_data_path))
@@ -155,7 +155,7 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
         # Thx to  https://towardsdatascience.com/web-scraping-crypto-prices-with-python-41072ea5b5bf
         # for the tip of using the script part of the website:
         data = json.loads(soup.find("script", id="__NEXT_DATA__", type="application/json").contents[0])
-        price_data = data["props"]["initialState"]["cryptocurrency"]["listingLatest"]["data"]
+        price_data = json.loads(data["props"]["initialState"])["cryptocurrency"]["listingLatest"]["data"]
         key_ordering = price_data[0]["keysArr"]
         price_array = price_data[1:]
 
