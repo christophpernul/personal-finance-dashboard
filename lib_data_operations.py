@@ -136,7 +136,7 @@ def preprocess_cashflow(df: pd.DataFrame) -> pd.DataFrame:
         "stocks": ['equity purchase'],
         #### Income categories
         "compensation_caution": ["Entschädigung"],
-        "salary": ["Salary", "Gehalt Vorschuss"],
+        "salary": ["Salary", "Gehalt Vorschuss", "Reisekosten"],
         "present": ["Geschenk"],
         "tax_compensation": ["Kirchensteuer Erstattung", "Steuerausgleich"],
         "investment_profit": ["Investing"]

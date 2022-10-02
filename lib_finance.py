@@ -146,7 +146,7 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
 
     # website has several pages of 100 cryptos each
     for page in range(num_pages):
-        url = base_url if page == 0 else base_url + "/?page=" + str(page+1)
+        url = base_url if page == 0 else base_url + "?page=" + str(page+1)
         r = requests.get(url)
         assert r.status_code == requests.codes.ok, f"Bad request to {url}!"
         html = r.content.decode("utf-8")
