@@ -35,6 +35,10 @@ def html_expenses_tab(title="Expenses"):
         {"label": "3 Months", "value": 3},
         {"label": "6 Months", "value": 6},
         {"label": "1 Year", "value": 12},
+        {"label": "2 Years", "value": 2*12},
+        {"label": "3 Years", "value": 3*12},
+        {"label": "4 Years", "value": 4*12},
+        {"label": "5 Years", "value": 5*12},
         {"label": "Full", "value": -1}
     ],
         value=-1,
