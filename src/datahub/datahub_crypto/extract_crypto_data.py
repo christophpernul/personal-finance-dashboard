@@ -2,28 +2,9 @@ import json
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-from datetime import date
 
 
-def conversion_rate_usDollar_euro(dollar_to_euro=True) -> float:
-    """
-    Uses https://www.finanzen.net to convert US-dollars $ to Euro € and vice versa.
-    :param dollar_to_euro: boolean flag, whether to convert dollars to euro
-    :return: conversion rate
-    """
-    date_today = date.today().strftime(format="%Y-%m-%d")
-    if dollar_to_euro == True:
-        url = f"https://www.finanzen.net/ajax/currencyConverter_Exchangerate/USD/EUR/{date_today}"
-    else:
-        url = f"https://www.finanzen.net/ajax/currencyConverter_Exchangerate/EUR/USD/{date_today}"
-
-    r = requests.post(url)
-    assert r.status_code == requests.codes.ok, "Could not convert $ to €!"
-    conversion = float(json.loads(r.content)[0])
-
-    return(conversion)
-
-def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFrame:
+def extract_crypto_prices(num_pages=5) -> pd.DataFrame:
     """
     Scrape current price of cryptocurrencies from https://www.coinmarketcap.com/ and convert it to Euro.
     :param num_pages: Each page holds 100 cryptos with highest capitalization per default.
@@ -75,8 +56,4 @@ def get_current_cryptocurrency_price(num_pages=5, currency="EUR") -> pd.DataFram
             df_prices = df_prices.append(df_coin, ignore_index=True)
     ## rename IOTA symbol to get in line with exchange-namings
     df_prices["symbol"] = df_prices["symbol"].str.replace("MIOTA", "IOTA")
-    if currency == "EUR":
-        conversion_rate = conversion_rate_usDollar_euro(dollar_to_euro=True)
-        df_prices["price"] = df_prices["price"]*conversion_rate
-        df_prices["volume_24h"] = df_prices["volume_24h"] * conversion_rate
-    return(df_prices)
+    return df_prices

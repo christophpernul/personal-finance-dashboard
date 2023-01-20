@@ -7,7 +7,7 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 import dash
 import dash_bootstrap_components as dbc
 from src.datahub.processing_layer import lib_data_operations as pl
-from src.datahub.datahub_crypto.crypto_lib import get_current_cryptocurrency_price
+from src.datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
 
 app = dash.Dash(__name__,
                 title="Finance App",

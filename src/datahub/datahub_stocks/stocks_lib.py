@@ -1,42 +1,16 @@
-import requests
 from bs4 import BeautifulSoup
 from datetime import date
 
-def url_justetf(isin):
-    """
-    Creates the URL for justetf, that displays the overview page of a given stock according to ISIN.
-    :param isin: ISIN of a stock or ETF (identifier)
-    :return:
-    """
-    return ("https://www.justetf.com/de/etf-profile.html?query={0}&groupField=index&from=search&isin={0}#overview" \
-            .format(isin))
-
-def get_master_data(isin_list):
-    """
-    Extracts all masterdata for all stocks in isin_list from justetf.com.
-    :param isin_list: List of ISINs for which master data should be extracted.
-    :return: list of dictionaries of master data
-    """
-    stock_list = []
-    for isin in isin_list:
-        r = requests.get(url_justetf(isin))
-        assert r.status_code == 200, "HTTP Error, {}".format(r.status_code)
-
-        html = r.content.decode("utf-8")
-        soup = BeautifulSoup(html, 'html.parser')
-        stock_dict = get_master_data_stock(soup)
-        stock_dict["ISIN"] = isin
-        stock_list.append(stock_dict)
-    return (stock_list)
 
 
-def get_master_data_stock(soup_base):
+def parse_etf_master_data(html: str):
     """
     Extracts masterdata for each stock given by the BeautifulSoup object from justetf.com overpage.
-    :param soup_base: BeautifulSoup object from justetf.com overview page
+    :param soup_base: HTML object from justetf.com overview page
     :return: dictionary of masterdata key:value pairs
     """
-    assert isinstance(soup_base, type(BeautifulSoup())), "Input is no BeautifulSoup object!"
+    soup_base = BeautifulSoup(html, 'html.parser')
+    assert isinstance(soup_base, type(BeautifulSoup())), "EXTRACT: Input is no BeautifulSoup object!"
     metadata = {}
     ### Get name of stock
     stock_name = soup_base.find_all("h1")[0].find_all("span", {"class": "h1"})[0].text
@@ -72,34 +46,16 @@ def get_master_data_stock(soup_base):
                     value = row.find_all("td")[1].text.replace(" ", "").replace("\n", "")
                     if label in needed_labels:
                         metadata[label] = value
-    return (metadata)
+    return metadata
 
 
-def get_prices(isin_list):
-    """
-    Iterate through list of ISINs and call justetf.com overview page for each stock and extract price informations.
-    :param isin_list: list of ISINs for all stocks, for which price should be extracted
-    :return: list of price dictionaries
-    """
-    stock_list = []
-    for isin in isin_list:
-        r = requests.get(url_justetf(isin))
-        assert r.status_code == 200, "HTTP Error, {}".format(r.status_code)
-
-        html = r.content.decode("utf-8")
-        soup = BeautifulSoup(html, 'html.parser')
-        stock_dict = get_price_stock(soup)
-        stock_dict["ISIN"] = isin
-        stock_list.append(stock_dict)
-    return (stock_list)
-
-
-def get_price_stock(soup_base):
+def parse_etf_prices(html: str):
     """
     Extracts price information from BeautifulSoup object created from HTML of justetf.com overview page.
-    :param soup_base: BeautifulSoup from HTML of justetf.com overview page
+    :param html: HTML of justetf.com overview page
     :return: dictionary with price, currency, Datum keys
     """
+    soup_base = BeautifulSoup(html, 'html.parser')
     assert isinstance(soup_base, type(BeautifulSoup())), "Input is no BeautifulSoup object!"
     price_dict = {}
 
@@ -111,4 +67,4 @@ def get_price_stock(soup_base):
     price_dict["Price"] = price
     price_dict["Date"] = date.today().strftime("%d.%m.%Y")
 
-    return (price_dict)
+    return price_dict

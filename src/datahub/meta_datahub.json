@@ -1,0 +1,34 @@
+{
+  "webTools": {
+    "stockMasterSourceUrl": "https://www.justetf.com/de/etf-profile.html"
+  },
+  "datahubMeta": {
+    "datahubBasePath": "/home/chris/Dropbox/Finance/data/datahub",
+    "sourceStageName": "SOURCE",
+    "ingestStageName": "INGEST",
+    "applicationStageName": "APPLICATION",
+    "datahubCryptoName": "crypto",
+    "datahubStocksName": "stocks",
+    "datahubCashFlowName": "toshl",
+    "extractLayerName": "extract",
+    "transformLayerName": "transform",
+    "applicationLayerName": "application"
+  },
+  "fileMap": {
+    "source": {
+      "etfList": "source_stocks_etf_master.ods",
+      "etfRegionMap": "source_stocks_etf_regionTypes.ods",
+      "etfTrades": "source_stocks_portfolio_trades.ods",
+      "stockTrades": "source_stocks_trades.ods",
+      "cashIncome": "source_toshl_income.ods"
+    },
+    "ingest": {
+      "etfPrices": "ingest_stocks_etf_prices.csv",
+      "etfMaster": "ingest_stocks_master.csv",
+      "cryptoPrices": "ingest_crypto_prices.csv"
+    },
+    "application": {
+
+    }
+  }
+}
