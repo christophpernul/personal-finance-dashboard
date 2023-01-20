@@ -4,9 +4,9 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto, portfolio_crypto_value
-import lib_data_operations as pl
-import lib_dash_plot as dpl
+from src.dashboard.dashboard_lib.app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto_value
+from src.datahub.processing_layer import lib_data_operations as pl
+from src.dashboard.plotting_lib import lib_dash_plot as dpl
 
 theme_colors = {
     'background': '#32383E',

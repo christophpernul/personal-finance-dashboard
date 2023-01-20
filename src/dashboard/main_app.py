@@ -3,9 +3,8 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
 ### Import app and dataframes containing data to display to call necessary functions and define callbacks
-from app import app, portfolio_monthly, portfolio_value
-import apps_portfolio
-
+from src.dashboard.dashboard_lib.app import app, portfolio_monthly, portfolio_value
+from src.dashboard.dashboard_lib import apps_portfolio
 
 ##################################### Define Dash App layout ###########################################################
 

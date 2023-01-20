@@ -6,8 +6,8 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 """
 import dash
 import dash_bootstrap_components as dbc
-import lib_data_operations as pl
-import lib_finance as lf
+from src.datahub.processing_layer import lib_data_operations as pl
+from src.datahub.datahub_crypto.crypto_lib import get_current_cryptocurrency_price
 
 app = dash.Dash(__name__,
                 title="Finance App",
@@ -19,7 +19,7 @@ server = app.server
 ################################ Data Processing for ETF portfolio #####################################################
 (df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
     df_cashflow_init, _, portfolio_crypto) = pl.load_data()
-crypto_prices = lf.get_current_cryptocurrency_price(currency="EUR")
+crypto_prices = get_current_cryptocurrency_price(currency="EUR")
 
 df_orders = pl.preprocess_orders(df_orders_init)
 df_prices = pl.preprocess_prices(df_prices_init)
