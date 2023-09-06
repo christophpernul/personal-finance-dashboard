@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "personal-finance-dashboard"
+version = "0.1.0"
+description = "Renders a finance dashboard giving insights into personal financial data."
+authors = ["pernulio <cpernul@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2"
+dash = "^2"
+dash-bootstrap-components = "^1.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

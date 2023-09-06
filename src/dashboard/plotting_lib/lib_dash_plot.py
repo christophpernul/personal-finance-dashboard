@@ -2,8 +2,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 import dash_table
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import html, dcc
 
 def show_dataframe(df, style_dict={'background': '#000000', 'text':'#FFFFFF'}):
     """
