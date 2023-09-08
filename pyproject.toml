@@ -13,6 +13,19 @@ dash = "^2"
 dash-bootstrap-components = "^1.4"
 pre-commit = "^3.4.0"
 
+[tool.black]
+line-length = 79
+include = '\.pyi?$'
+exclude = '''
+/(
+  \.toml
+  |\.sh
+  |\.git
+  |\.ini
+  |Dockerfile
+  |Jenkinfile
+)/
+'''
 
 [build-system]
 requires = ["poetry-core"]
