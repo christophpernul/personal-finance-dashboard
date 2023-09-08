@@ -12,7 +12,7 @@ The dashboard was built using Python Plotly Dash:[https://dash.plotly.com/]()
 ## Input data schemata
 - finanzübersicht.ods (libreOffice calc)
     - Sheet: 3.2 Portfolio langfristig Transactions
-        Columns: 
+        Columns:
             "Index": Index for a single savings plans execution (integer, is empty in case of dividend payments)
             "Datum": Date of execution (dd.MM.yyyy)
             "Kurs": Price of stock (xx.xx)
@@ -82,7 +82,7 @@ This tab shows average monthly income as well as a barchart, that can be customi
 This tab shows a list of all ETF's in the monthly savings plan together with some useful informations like
 total expense ratio (TER), region and further ETF properties as well as the investment amount for each.
 
-A KPI panel shows average cost and investment per month. Furthermore interesting portfolio statistics, like  
+A KPI panel shows average cost and investment per month. Furthermore interesting portfolio statistics, like
  distribution across regions (diversification), types and replicationmethods are shown as piecharts at the bottom.
 
 ![alt text](https://github.com/christophpernul/personal-finance-dashboard/blob/main/documentation/finance_dashboard_monthlyPlan.png?raw=true)
