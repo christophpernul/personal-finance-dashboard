@@ -14,29 +14,36 @@ def extract_crypto_prices(num_pages=5) -> pd.DataFrame:
 
     # website has several pages of 100 cryptos each
     for page in range(num_pages):
-        url = base_url if page == 0 else base_url + "?page=" + str(page+1)
+        url = base_url if page == 0 else base_url + "?page=" + str(page + 1)
         r = requests.get(url)
         assert r.status_code == requests.codes.ok, f"Bad request to {url}!"
         html = r.content.decode("utf-8")
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
 
         # Thx to  https://towardsdatascience.com/web-scraping-crypto-prices-with-python-41072ea5b5bf
         # for the tip of using the script part of the website:
-        data = json.loads(soup.find("script", id="__NEXT_DATA__", type="application/json").contents[0])
-        price_data = json.loads(data["props"]["initialState"])["cryptocurrency"]["listingLatest"]["data"]
+        data = json.loads(
+            soup.find(
+                "script", id="__NEXT_DATA__", type="application/json"
+            ).contents[0]
+        )
+        price_data = json.loads(data["props"]["initialState"])[
+            "cryptocurrency"
+        ]["listingLatest"]["data"]
         key_ordering = price_data[0]["keysArr"]
         price_array = price_data[1:]
 
         # Create a key-map used to parse the response-json
         key_map = {}
-        keys_to_parse = {"name": "name",
-                         "symbol": "symbol",
-                         "quote.USD.price": "price",
-                         "quote.USD.volume24h": "volume_24h",
-                         "quote.USD.percentChange1h": "change_%_1h",
-                         "quote.USD.percentChange24h": "change_%_24h",
-                         "quote.USD.percentChange7d": "change_%_7d"
-                         }
+        keys_to_parse = {
+            "name": "name",
+            "symbol": "symbol",
+            "quote.USD.price": "price",
+            "quote.USD.volume24h": "volume_24h",
+            "quote.USD.percentChange1h": "change_%_1h",
+            "quote.USD.percentChange24h": "change_%_24h",
+            "quote.USD.percentChange7d": "change_%_7d",
+        }
         for idx, key in enumerate(key_ordering):
             # json structure: price_data = list({"keysArr":[holds key names], "id": str, "excludeProps": []},
             # [data coin 1], [data coin 2],...)

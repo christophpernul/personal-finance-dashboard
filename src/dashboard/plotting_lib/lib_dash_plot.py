@@ -91,34 +91,46 @@ from dash import html, dcc
 #     )
 #     return(content)
 
-def plot_barchart(df, title, x_axis = "Date", theme_colors={'background':"#32383E", 'text': "#FFFFFF"}):
+
+def plot_barchart(
+    df,
+    title,
+    x_axis="Date",
+    theme_colors={"background": "#32383E", "text": "#FFFFFF"},
+):
     """
     Makes a barchart plot of the dataframe df, where x-axis is a date and y-axis is cashflow (expenses
     or incomes). Adds a horizontal line (average of specified time-interval) to the chart.
-    :param df: pd.DataFrame, holding a Date column and another column with cashflow data
+    :param df: pd.DataFrame, holding a Date index and another column with cashflow data (value or category name)
     :param title: Specify whether the chart shows Expenses or Income
     :return:
     """
-    assert title in ["Expenses", "Income"], 'Title of barchart has to be in ["Expenses", "Income"]!'
-    assert len(df.columns) == 1, f"Only one column with name 'value' or category-name expected, got: {df.columns}"
+    assert title in [
+        "Expenses",
+        "Income",
+    ], 'Title of barchart has to be in ["Expenses", "Income"]!'
+    assert (
+        len(df.columns) == 1
+    ), f"Only one column with name 'value' or category-name expected, got: {df.columns}"
     df_chart = df.copy()
     ## Take first column: cannot specify name, because in case of overall displaying, the column has no name
 
     df_chart = df_chart.rename(columns={df.columns[0]: title}).reset_index()
     if title == "Expenses":
-        df_chart[title] = df_chart[title]*-1
+        df_chart[title] = df_chart[title] * -1
     average = df_chart[title].mean()
     try:
         fig = px.bar(df_chart.sort_values(x_axis), x=x_axis, y=title)
         if x_axis == "Date":
             ### Plot average only for barchart over time, not for a single month
-            fig.add_trace(go.Scatter(
-                x = df_chart[x_axis],
-                y = [average for _ in range(len(df_chart))],
-                mode="lines",
-                line=dict(color='#1cbced'),
-                name="Average"
-            )
+            fig.add_trace(
+                go.Scatter(
+                    x=df_chart[x_axis],
+                    y=[average for _ in range(len(df_chart))],
+                    mode="lines",
+                    line=dict(color="#1cbced"),
+                    name="Average",
+                )
             )
         if title == "Expenses":
             fig.update_traces(marker_color="red")
@@ -127,20 +139,14 @@ def plot_barchart(df, title, x_axis = "Date", theme_colors={'background':"#32383
     except:
         ### In case the dataframe is empty, because there is no transaction in the specified timespan
         fig = go.Figure()
-    fig.update_layout(plot_bgcolor=theme_colors['background'],
-                      paper_bgcolor=theme_colors['background'],
-                      font_color=theme_colors['text'],
-                      font_size=17,
-                      hoverlabel=dict(font=dict(color='black'))
-                      )
-    fig.update_yaxes(gridwidth=0.5,
-                     gridcolor="grey",
-                     showgrid=True
-                     )
-
-    content = html.Div(
-        dcc.Graph(
-            figure=fig
-        )
+    fig.update_layout(
+        plot_bgcolor=theme_colors["background"],
+        paper_bgcolor=theme_colors["background"],
+        font_color=theme_colors["text"],
+        font_size=17,
+        hoverlabel=dict(font=dict(color="black")),
     )
-    return(content)
+    fig.update_yaxes(gridwidth=0.5, gridcolor="grey", showgrid=True)
+
+    content = html.Div(dcc.Graph(figure=fig))
+    return content

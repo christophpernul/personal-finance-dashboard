@@ -194,7 +194,10 @@ import pandas as pd
 #
 #     return (df_portfolio)
 
-def filter_portfolio_date(portfolio: pd.DataFrame, offset_months: int) -> pd.DataFrame:
+
+def filter_portfolio_date(
+    portfolio: pd.DataFrame, offset_months: int
+) -> pd.DataFrame:
     """
     Filters the dataframe, portfolio, to all entries that occur after today's date minus offset_months.
     :param portfolio: Needs column Date
@@ -203,15 +206,20 @@ def filter_portfolio_date(portfolio: pd.DataFrame, offset_months: int) -> pd.Dat
     """
     from datetime import date
 
-    assert "Date" in portfolio.columns, 'Column "Date" is missing in input dataframe!'
+    assert (
+        "Date" in portfolio.columns
+    ), 'Column "Date" is missing in input dataframe!'
 
     date_today = pd.Timestamp(date.today())
     if offset_months == -1:
-        return(portfolio)
+        return portfolio
     else:
         date_offset = pd.DateOffset(months=offset_months)
-        portfolio_date_filtered = portfolio[portfolio["Date"] >= date_today - date_offset]
-        return(portfolio_date_filtered)
+        portfolio_date_filtered = portfolio[
+            portfolio["Date"] >= date_today - date_offset
+        ]
+        return portfolio_date_filtered
+
 
 # def filter_portfolio_stock(portfolio: pd.DataFrame, stock_name: str) -> pd.DataFrame:
 #     """
@@ -297,4 +305,3 @@ def filter_portfolio_date(portfolio: pd.DataFrame, offset_months: int) -> pd.Dat
 #     df_overall["Name"] = "Overall Portfolio"
 #     df_timeseries = pd.concat([df_grouped_all, df_overall], ignore_index=True, sort=False)
 #     return(df_timeseries)
-
