@@ -7,9 +7,8 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-# from src.datahub.processing_layer import lib_data_operations as pl
-# from src.datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
-# TODO: Use poetry here too!
+# from datahub.processing_layer import lib_data_operations as pl
+# from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
 app = dash.Dash(__name__,
                 title="Finance App",
                 suppress_callback_exceptions=True,
@@ -19,8 +18,8 @@ server = app.server
 
 ################################ Data Processing for ETF portfolio #####################################################
 # TODO: Load only necessary data and drop everything else! Use load_data() function instead!
-df_expenses = pd.read_csv(filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/transform/cashflow/a_20_incomes.csv")
-df_incomes = pd.read_csv(filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/transform/cashflow/a_20_expenses.csv")
+df_expenses = pd.read_csv(filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/transform/cashflow/a_20_expenses.csv")
+df_incomes = pd.read_csv(filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/transform/cashflow/a_20_incomes.csv")
 df_expenses["Date"] = pd.to_datetime(df_expenses["Date"], format='%Y-%m-%d')
 df_expenses = df_expenses.set_index("Date")
 df_incomes["Date"] = pd.to_datetime(df_incomes["Date"], format='%Y-%m-%d')

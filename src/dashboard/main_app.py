@@ -3,8 +3,8 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
 ### Import app and dataframes containing data to display to call necessary functions and define callbacks
-from src.dashboard.dashboard_lib.app import app, portfolio_monthly, portfolio_value
-from src.dashboard.dashboard_lib import apps_portfolio
+from dashboard.dashboard_lib.app import app, portfolio_monthly, portfolio_value
+from dashboard.dashboard_lib import apps_portfolio
 
 HTML_NO_CONTENT = html.Div([html.H2("Choose a timeframe")])
 # TODO: Add functionality with each new feature in future, where HTML_NO_CONTENT was placed!

@@ -3,9 +3,9 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from src.dashboard.dashboard_lib.app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto_value
-# from src.datahub.processing_layer import lib_data_operations as pl
-# from src.dashboard.plotting_lib import lib_dash_plot as dpl
+from dashboard.dashboard_lib.app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto_value
+from datahub.processing_layer import lib_data_operations as pl
+from dashboard.plotting_lib import lib_dash_plot as dpl
 
 theme_colors = {
     'background': '#32383E',
@@ -478,50 +478,50 @@ def html_income_tab(title="Income"):
 #
 #     return(dpl.plot_stock_linechart(df_sorted))
 #
-# def barchart_expenses(timespan, category):
-#     """
-#     Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
-#     (timespan, category). Shows a barchart of the selected expenses in the category for the specified timespan.
-#     :param timespan: How many months into the past the data should range.
-#     :param category: Category for which expenses are shown
-#     :return: barchart HTML element
-#     """
-#     df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
-#     if category == "Overall":
-#         df_sorted = df_date_sorted.sum(axis=1)
-#     else:
-#         assert category in df_expenses.columns, "Category not in columns of dataframe!"
-#         df_sorted = df_date_sorted[category]
-#     return(dpl.plot_barchart(df_sorted, "Expenses"))
-#
-# def barchart_month(month):
-#     """
-#     Displays the content of the barchart of expenses in the selected month.
-#     :param month: pd.Timestamp of last day of selected month in dropdown
-#     :return: barchart HTML element
-#     """
-#     import pandas as pd
-#     df_month = df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month].set_index("Date").copy()
-#     df_chart = pd.DataFrame(df_month.stack()).rename(columns={0:"Expenses"}).reset_index()
-#     df_chart = df_chart[["Tags", "Expenses"]].set_index("Tags")
-#     return(dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags"))
-#
-# def barchart_income(timespan, category):
-#     """
-#     Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
-#     (timespan, category). Shows a barchart of the selected income in the category for the specified timespan.
-#     :param timespan: How many months into the past the data should range.
-#     :param category: Category for which income is shown
-#     :return: barchart HTML element
-#     """
-#     df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
-#     if category == "Overall":
-#         df_sorted = df_date_sorted.sum(axis=1)
-#     else:
-#         assert category in df_incomes.columns, "Category not in columns of dataframe!"
-#         df_sorted = df_date_sorted[category]
-#     return(dpl.plot_barchart(df_sorted, "Income"))
-#
+def barchart_expenses(timespan, category):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
+    (timespan, category). Shows a barchart of the selected expenses in the category for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :param category: Category for which expenses are shown
+    :return: barchart HTML element
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_expenses.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    return(dpl.plot_barchart(df_sorted, "Expenses"))
+
+def barchart_month(month):
+    """
+    Displays the content of the barchart of expenses in the selected month.
+    :param month: pd.Timestamp of last day of selected month in dropdown
+    :return: barchart HTML element
+    """
+    import pandas as pd
+    df_month = df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month].set_index("Date").copy()
+    df_chart = pd.DataFrame(df_month.stack()).rename(columns={0:"Expenses"}).reset_index()
+    df_chart = df_chart[["Tags", "Expenses"]].set_index("Tags")
+    return(dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags"))
+
+def barchart_income(timespan, category):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown elements
+    (timespan, category). Shows a barchart of the selected income in the category for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :param category: Category for which income is shown
+    :return: barchart HTML element
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_incomes.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    return(dpl.plot_barchart(df_sorted, "Income"))
+
 # def html_crypto_overview(title="Cryptocurrencies",
 #                          title_kpi="Total Value"):
 #     """
@@ -625,92 +625,92 @@ def html_income_tab(title="Income"):
 #     html_div = timeseries_chart(timespan, stock_name)
 #     return (html_div)
 #
-# @app.callback(Output('main-barchart', 'children'),
-#               [Input('dropdown-timespan', 'value'),
-#                 Input('dropdown-category', 'value')
-#                ]
-#               )
-# def dropdown_expenses_chart(timespan: int, category: str):
-#     """
-#     Get the content element for the timeseries chart for the given dropdown selection.
-#     :param timespan: Amount of months into past, that should be visible in the plot
-#     :param stock_name: name of stock to show in the timeseries plot
-#     :return: html element of a timeseries plot
-#     """
-#     html_div = barchart_expenses(timespan, category)
-#     return (html_div)
-#
-# @app.callback(Output('kpi-average', 'children'),
-#               [Input('dropdown-timespan', 'value'),
-#                 Input('dropdown-category', 'value')
-#                ]
-#               )
-# def dropdown_expenses_average(timespan: int, category: str):
-#     """
-#     Get the content element for the timeseries chart for the given dropdown selection.
-#     :param timespan: Amount of months into past, that should be visible in the plot
-#     :param stock_name: name of stock to show in the timeseries plot
-#     :return: html element of a timeseries plot
-#     """
-#     df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
-#     if category == "Overall":
-#         df_sorted = df_date_sorted.sum(axis=1)
-#     else:
-#         assert category in df_expenses.columns, "Category not in columns of dataframe!"
-#         df_sorted = df_date_sorted[category]
-#     average = -df_sorted.mean()
-#     html_div = html.B(f"{average:.2f} €")
-#     return (html_div)
-#
-# @app.callback(Output('barchart-month', 'children'),
-#               Input('dropdown-month', 'value')
-#               )
-# def dropdown_month_barchart(month):
-#     """
-#     Get the content element for the barchart for the given dropdown selection (month).
-#     :param month: pd.Timestamp, timestamp of last day in selected month
-#     :return: html element of a timeseries plot
-#     """
-#     html_div = barchart_month(month)
-#     return (html_div)
-#
-# @app.callback(Output('main-barchart-income', 'children'),
-#               [Input('dropdown-timespan-income', 'value'),
-#                 Input('dropdown-category-income', 'value')
-#                ]
-#               )
-# def dropdown_income_chart(timespan: int, category: str):
-#     """
-#     Get the content element for the timeseries chart for the given dropdown selection.
-#     :param timespan: Amount of months into past, that should be visible in the plot
-#     :param stock_name: name of stock to show in the timeseries plot
-#     :return: html element of a timeseries plot
-#     """
-#     html_div = barchart_income(timespan, category)
-#     return (html_div)
-#
-# @app.callback(Output('kpi-average-income', 'children'),
-#               [Input('dropdown-timespan-income', 'value'),
-#                 Input('dropdown-category-income', 'value')
-#                ]
-#               )
-# def dropdown_income_average(timespan: int, category: str):
-#     """
-#     Get the content element for the timeseries chart for the given dropdown selection.
-#     :param timespan: Amount of months into past, that should be visible in the plot
-#     :param stock_name: name of stock to show in the timeseries plot
-#     :return: html element of a timeseries plot
-#     """
-#     df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
-#     if category == "Overall":
-#         df_sorted = df_date_sorted.sum(axis=1)
-#     else:
-#         assert category in df_incomes.columns, "Category not in columns of dataframe!"
-#         df_sorted = df_date_sorted[category]
-#     average = df_sorted.mean()
-#     html_div = html.B(f"{average:.2f} €")
-#     return (html_div)
-#
+@app.callback(Output('main-barchart', 'children'),
+              [Input('dropdown-timespan', 'value'),
+                Input('dropdown-category', 'value')
+               ]
+              )
+def dropdown_expenses_chart(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_expenses(timespan, category)
+    return (html_div)
+
+@app.callback(Output('kpi-average', 'children'),
+              [Input('dropdown-timespan', 'value'),
+                Input('dropdown-category', 'value')
+               ]
+              )
+def dropdown_expenses_average(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_expenses.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    average = -df_sorted.mean()
+    html_div = html.B(f"{average:.2f} €")
+    return (html_div)
+
+@app.callback(Output('barchart-month', 'children'),
+              Input('dropdown-month', 'value')
+              )
+def dropdown_month_barchart(month):
+    """
+    Get the content element for the barchart for the given dropdown selection (month).
+    :param month: pd.Timestamp, timestamp of last day in selected month
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_month(month)
+    return (html_div)
+
+@app.callback(Output('main-barchart-income', 'children'),
+              [Input('dropdown-timespan-income', 'value'),
+                Input('dropdown-category-income', 'value')
+               ]
+              )
+def dropdown_income_chart(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_income(timespan, category)
+    return (html_div)
+
+@app.callback(Output('kpi-average-income', 'children'),
+              [Input('dropdown-timespan-income', 'value'),
+                Input('dropdown-category-income', 'value')
+               ]
+              )
+def dropdown_income_average(timespan: int, category: str):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :param stock_name: name of stock to show in the timeseries plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    if category == "Overall":
+        df_sorted = df_date_sorted.sum(axis=1)
+    else:
+        assert category in df_incomes.columns, "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[category]
+    average = df_sorted.mean()
+    html_div = html.B(f"{average:.2f} €")
+    return (html_div)
+
 # @app.callback(Output('crypto-dataframe', 'children'),
 #               Input('dropdown-crypto-exchange', 'value'))
 # def dropdown_crypto_exchange(exchange: str):
