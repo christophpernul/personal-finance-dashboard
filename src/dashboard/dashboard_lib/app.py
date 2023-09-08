@@ -26,10 +26,10 @@ df_expenses = pd.read_csv(
 df_incomes = pd.read_csv(
     filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/transform/cashflow/a_20_incomes.csv"
 )
-df_expenses["Date"] = pd.to_datetime(df_expenses["Date"], format="%Y-%m-%d")
-df_expenses = df_expenses.set_index("Date")
-df_incomes["Date"] = pd.to_datetime(df_incomes["Date"], format="%Y-%m-%d")
-df_incomes = df_incomes.set_index("Date")
+df_expenses["date"] = pd.to_datetime(df_expenses["date"], format="%Y-%m-%d")
+df_expenses = df_expenses.set_index("date")
+df_incomes["date"] = pd.to_datetime(df_incomes["date"], format="%Y-%m-%d")
+df_incomes = df_incomes.set_index("date")
 
 df_orders = pd.DataFrame()
 df_timeseries = pd.DataFrame()

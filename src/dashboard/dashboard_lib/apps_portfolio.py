@@ -482,7 +482,7 @@ def barchart_expenses(timespan, category):
     """
     df_date_sorted = pl.filter_portfolio_date(
         df_expenses.reset_index(), timespan
-    ).set_index("Date")
+    ).set_index("date")
     if category == "Overall":
         df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(
             columns={0: "value"}
@@ -502,19 +502,19 @@ def barchart_month(month):
     :return: barchart HTML element
     """
     df_month = (
-        df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month]
-        .set_index("Date")
+        df_expenses.reset_index()[df_expenses.reset_index()["date"] == month]
+        .set_index("date")
         .copy()
     )
     df_chart = (
         pd.DataFrame(df_month.stack())
-        .rename_axis(index=["Date", "Tags"])
+        .rename_axis(index=["date", "tag"])
         .rename(columns={0: "value"})
         .reset_index()
-        .drop(columns="Date", axis=1)
-        .set_index("Tags")
+        .drop(columns="date", axis=1)
+        .set_index("tag")
     )
-    return dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags")
+    return dpl.plot_barchart(df_chart, title="Expenses", x_axis="tag")
 
 
 def barchart_income(timespan, category):
@@ -527,7 +527,7 @@ def barchart_income(timespan, category):
     """
     df_date_sorted = pl.filter_portfolio_date(
         df_incomes.reset_index(), timespan
-    ).set_index("Date")
+    ).set_index("date")
     if category == "Overall":
         df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(
             columns={0: "value"}
@@ -671,7 +671,7 @@ def dropdown_expenses_average(timespan: int, category: str):
     """
     df_date_sorted = pl.filter_portfolio_date(
         df_expenses.reset_index(), timespan
-    ).set_index("Date")
+    ).set_index("date")
     if category == "Overall":
         df_sorted = df_date_sorted.sum(axis=1)
     else:
@@ -731,7 +731,7 @@ def dropdown_income_average(timespan: int, category: str):
     """
     df_date_sorted = pl.filter_portfolio_date(
         df_incomes.reset_index(), timespan
-    ).set_index("Date")
+    ).set_index("date")
     if category == "Overall":
         df_sorted = df_date_sorted.sum(axis=1)
     else:

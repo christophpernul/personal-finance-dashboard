@@ -10,9 +10,9 @@ import pandas as pd
 #     assert dfp["Currency"].drop_duplicates().count() == 1, "Multiple currencies used for price data!"
 #     assert dfp["Currency"].iloc[0] == "EUR", "Currency is not Euro!"
 #
-#     dfp["Date"] = pd.to_datetime(dfp["Date"], format="%d.%m.%Y")
-#     latest_date = dfp["Date"].max()
-#     df_current_prices = dfp[dfp["Date"] == latest_date].reset_index(drop=True)
+#     dfp["date"] = pd.to_datetime(dfp["date"], format="%d.%m.%Y")
+#     latest_date = dfp["date"].max()
+#     df_current_prices = dfp[dfp["date"] == latest_date].reset_index(drop=True)
 #     return(df_current_prices)
 #
 #
@@ -26,7 +26,7 @@ import pandas as pd
 #     """
 #     orders_portfolio = df_orders.copy()
 #     portfolio_columns = ["Index", "Datum", "Kurs", "Betrag", "Kosten", "Anbieter", "Name", "ISIN"]
-#     new_portfolio_columns = ["Index", "Date", "Price", "Investment", "Ordercost", "Depotprovider", "Name", "ISIN"]
+#     new_portfolio_columns = ["Index", "date", "Price", "Investment", "Ordercost", "Depotprovider", "Name", "ISIN"]
 #     rename_columns = {key: value for key, value in zip(portfolio_columns, new_portfolio_columns)}
 #
 #     orders_portfolio = orders_portfolio.rename(columns=rename_columns)
@@ -39,8 +39,8 @@ import pandas as pd
 #     orders_portfolio = orders_portfolio[orders_portfolio["Art"] == "ETF Sparplan"]
 #
 #     orders_portfolio = orders_portfolio[new_portfolio_columns]
-#     orders_portfolio = orders_portfolio[~orders_portfolio["Date"].isna()]
-#     orders_portfolio["Date"] = pd.to_datetime(orders_portfolio["Date"], format="%d.%m.%Y")
+#     orders_portfolio = orders_portfolio[~orders_portfolio["date"].isna()]
+#     orders_portfolio["date"] = pd.to_datetime(orders_portfolio["date"], format="%d.%m.%Y")
 #     orders_portfolio["Index"] = orders_portfolio["Index"].astype(int)
 #
 #     assert (orders_portfolio[orders_portfolio["Investment"] > 0.].count() != 0).any() == False, \
@@ -207,8 +207,8 @@ def filter_portfolio_date(
     from datetime import date
 
     assert (
-        "Date" in portfolio.columns
-    ), 'Column "Date" is missing in input dataframe!'
+        "date" in portfolio.columns
+    ), 'Column "date" is missing in input dataframe!'
 
     date_today = pd.Timestamp(date.today())
     if offset_months == -1:
@@ -216,7 +216,7 @@ def filter_portfolio_date(
     else:
         date_offset = pd.DateOffset(months=offset_months)
         portfolio_date_filtered = portfolio[
-            portfolio["Date"] >= date_today - date_offset
+            portfolio["date"] >= date_today - date_offset
         ]
         return portfolio_date_filtered
 
@@ -238,8 +238,8 @@ def filter_portfolio_date(
 #     :param orders: Holds price and investmentamount data for each stock at every date.
 #     :return: Tuple of orders (including amount of stocks) and prices.
 #     """
-#     prices = orders[["Date", "Name", "Price"]]
-#     necessary_columns = ["Date", "Name", "Investment", "Ordercost", "Amount"]
+#     prices = orders[["date", "Name", "Price"]]
+#     necessary_columns = ["date", "Name", "Investment", "Ordercost", "Amount"]
 #     df_orders = orders.drop_duplicates().copy()
 #     df_orders["Amount"] = df_orders["Investment"] / df_orders["Price"]
 #     df_orders = df_orders[necessary_columns]
@@ -254,18 +254,18 @@ def filter_portfolio_date(
 #     :param orders: dataframe, containing Investmentamount, ordercost and price for each stock per transactiondate
 #     :return:
 #     """
-#     necessary_columns = ["Date", "Name", "Investment", "Price", "Ordercost"]
+#     necessary_columns = ["date", "Name", "Investment", "Price", "Ordercost"]
 #     assert set(orders.columns).intersection(set(necessary_columns)) == set(necessary_columns), \
 #         "Necessary columns missing in order data for timeseries preparation!"
 #     orders["Amount"] = orders["Investment"]/orders["Price"]
 #     ### Map each transaction-date to the beginning of the month for easier comparison
-#     orders["Date"] = orders["Date"].apply(lambda date: pd.offsets.MonthBegin().rollback(date))
+#     orders["date"] = orders["date"].apply(lambda date: pd.offsets.MonthBegin().rollback(date))
 #
 #     ### Prepare master data of all stocks and dates in order history
 #     ### TODO: Refine all data preprocessing to just once define master data for all needed tasks
 #     all_stocks = pd.DataFrame(orders["Name"].drop_duplicates()).copy()
 #     all_stocks["key"] = 0
-#     all_dates = pd.DataFrame(orders["Date"].drop_duplicates()).copy()
+#     all_dates = pd.DataFrame(orders["date"].drop_duplicates()).copy()
 #     all_dates["key"] = 0
 #     all_combinations = pd.merge(all_dates, all_stocks, on='key').drop("key", axis=1)
 #
@@ -273,14 +273,14 @@ def filter_portfolio_date(
 #     ### bought in the past at each transaction-date (stock data for stocks, which were not bought at that date,
 #     ### is filled with 0 to enable correct computation of cumsum()
 #     group_columns = ["Investment", "Ordercost", "Amount"]
-#     df_init = all_combinations.merge(orders[["Date", "Name"] + group_columns], how="left",
-#                                      left_on=["Date", "Name"],
-#                                      right_on=["Date", "Name"]
+#     df_init = all_combinations.merge(orders[["date", "Name"] + group_columns], how="left",
+#                                      left_on=["date", "Name"],
+#                                      right_on=["date", "Name"]
 #                                      ).fillna(0).copy()
-#     price_lookup = orders[["Date", "Name", "Price"]].copy()
+#     price_lookup = orders[["date", "Name", "Price"]].copy()
 #
 #     ### Compute cumsum() per stockgroup and rejoin date
-#     df_grouped = df_init.sort_values("Date").groupby("Name").cumsum()
+#     df_grouped = df_init.sort_values("date").groupby("Name").cumsum()
 #     df_grouped_all = df_init.merge(df_grouped, how="left",
 #                                    left_index=True,
 #                                    right_index=True,
@@ -290,17 +290,17 @@ def filter_portfolio_date(
 #     ### Rejoin prices and compute values for each stock at each date, fill values of stocks, which were not
 #     ### bought at that date again with 0s
 #     df_grouped_all = df_grouped_all.merge(price_lookup, how="left",
-#                                           left_on=["Date", "Name"],
-#                                           right_on=["Date", "Name"],
+#                                           left_on=["date", "Name"],
+#                                           right_on=["date", "Name"],
 #                                           suffixes=[None, "_y"]
 #                                           )
 #     df_grouped_all["Value"] = df_grouped_all["Amount"] * df_grouped_all["Price"]
 #     df_grouped_all = df_grouped_all.drop(["Amount", "Price"], axis=1)#.fillna(0)
 #
 #     ### Finally sum over stock values at each date to arrive at timeseries format
-#     df_overall = df_grouped_all.sort_values("Date").set_index("Date")\
+#     df_overall = df_grouped_all.sort_values("date").set_index("date")\
 #                                                         .drop(["Name"], axis=1)\
-#                                                         .groupby("Date").sum() \
+#                                                         .groupby("date").sum() \
 #                                                         .reset_index()
 #     df_overall["Name"] = "Overall Portfolio"
 #     df_timeseries = pd.concat([df_grouped_all, df_overall], ignore_index=True, sort=False)

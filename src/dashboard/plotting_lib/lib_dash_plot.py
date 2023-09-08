@@ -74,7 +74,7 @@ from dash import html, dcc
 #         ### In case the dataframe is empty, because there is no transaction in the specified timespan
 #         fig = go.Figure()
 #     fig.update_traces(mode="lines+markers")
-#     fig.update_layout(xaxis_title="Date",
+#     fig.update_layout(xaxis_title="date",
 #                       yaxis_title="Value",
 #                       font_size=17,
 #                       legend=dict(x=0.01, y=0.99, title=""),
@@ -95,7 +95,7 @@ from dash import html, dcc
 def plot_barchart(
     df,
     title,
-    x_axis="Date",
+    x_axis="date",
     theme_colors={"background": "#32383E", "text": "#FFFFFF"},
 ):
     """
@@ -121,7 +121,7 @@ def plot_barchart(
     average = df_chart[title].mean()
     try:
         fig = px.bar(df_chart.sort_values(x_axis), x=x_axis, y=title)
-        if x_axis == "Date":
+        if x_axis == "date":
             ### Plot average only for barchart over time, not for a single month
             fig.add_trace(
                 go.Scatter(
