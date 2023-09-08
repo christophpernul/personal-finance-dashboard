@@ -1,4 +1,5 @@
 from dash import html, dcc
+import pandas as pd
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
@@ -488,10 +489,10 @@ def barchart_expenses(timespan, category):
     """
     df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
     if category == "Overall":
-        df_sorted = df_date_sorted.sum(axis=1)
+        df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(columns={0: "value"})
     else:
         assert category in df_expenses.columns, "Category not in columns of dataframe!"
-        df_sorted = df_date_sorted[category]
+        df_sorted = df_date_sorted[[category]]
     return(dpl.plot_barchart(df_sorted, "Expenses"))
 
 def barchart_month(month):
@@ -500,10 +501,9 @@ def barchart_month(month):
     :param month: pd.Timestamp of last day of selected month in dropdown
     :return: barchart HTML element
     """
-    import pandas as pd
     df_month = df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month].set_index("Date").copy()
-    df_chart = pd.DataFrame(df_month.stack()).rename(columns={0:"Expenses"}).reset_index()
-    df_chart = df_chart[["Tags", "Expenses"]].set_index("Tags")
+    df_chart = (pd.DataFrame(df_month.stack()).rename_axis(index=["Date", "Tags"]).rename(columns={0: "value"})
+                .reset_index().drop(columns="Date", axis=1).set_index("Tags"))
     return(dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags"))
 
 def barchart_income(timespan, category):
@@ -516,10 +516,10 @@ def barchart_income(timespan, category):
     """
     df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
     if category == "Overall":
-        df_sorted = df_date_sorted.sum(axis=1)
+        df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(columns={0: "value"})
     else:
         assert category in df_incomes.columns, "Category not in columns of dataframe!"
-        df_sorted = df_date_sorted[category]
+        df_sorted = df_date_sorted[[category]]
     return(dpl.plot_barchart(df_sorted, "Income"))
 
 # def html_crypto_overview(title="Cryptocurrencies",

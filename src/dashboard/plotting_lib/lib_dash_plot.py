@@ -100,10 +100,11 @@ def plot_barchart(df, title, x_axis = "Date", theme_colors={'background':"#32383
     :return:
     """
     assert title in ["Expenses", "Income"], 'Title of barchart has to be in ["Expenses", "Income"]!'
-    df_chart = df.reset_index().copy()
+    assert len(df.columns) == 1, f"Only one column with name 'value' or category-name expected, got: {df.columns}"
+    df_chart = df.copy()
     ## Take first column: cannot specify name, because in case of overall displaying, the column has no name
-    tag_column = df_chart.columns[1]
-    df_chart = df_chart.rename(columns={tag_column: title})
+
+    df_chart = df_chart.rename(columns={df.columns[0]: title}).reset_index()
     if title == "Expenses":
         df_chart[title] = df_chart[title]*-1
     average = df_chart[title].mean()
