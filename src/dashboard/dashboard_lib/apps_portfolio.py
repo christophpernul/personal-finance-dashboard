@@ -55,8 +55,9 @@ def html_expenses_tab(title="Expenses"):
         id="dropdown-timespan",
     )
     category_default = "Overall"
-    distinct_categories = sorted(list(df_expenses.columns))
+    distinct_categories = list(df_expenses.columns)
     distinct_categories.append(category_default)
+    distinct_categories.sort()
 
     dropdown_category = dcc.Dropdown(
         options=[

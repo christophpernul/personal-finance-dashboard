@@ -21,10 +21,10 @@ server = app.server
 ################################ Data Processing for ETF portfolio #####################################################
 # TODO: Load only necessary data and drop everything else! Use load_data() function instead!
 df_expenses = pd.read_csv(
-    filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/application/cashflow/b_00_expenses.csv"
+    filepath_or_buffer="C:/Users/pernulio/SynologyDrive/Finance/data/datahub/application/cashflow/b_00_expenses.csv"
 )
 df_incomes = pd.read_csv(
-    filepath_or_buffer="C:/Users/pernulio/Dropbox/Finance/data/datahub/application/cashflow/b_00_incomes.csv"
+    filepath_or_buffer="C:/Users/pernulio/SynologyDrive/Finance/data/datahub/application/cashflow/b_00_incomes.csv"
 )
 df_expenses["date"] = pd.to_datetime(df_expenses["date"], format="%Y-%m-%d")
 df_expenses = df_expenses.set_index("date")
