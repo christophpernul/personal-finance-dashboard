@@ -25,35 +25,39 @@ server = app.server
 
 ################################ Data Processing for ETF portfolio #####################################################
 # TODO: Load only necessary data and drop everything else! Use load_data() function instead!
+DATAHUB_ROOT_FILEPATH = "D:/SynologyDrive/Finance/data/datahub/"
 df_expenses = pd.read_csv(
-    filepath_or_buffer="D:/SynologyDrive/Finance/data/datahub/application/cashflow/b_00_expenses.csv"
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/cashflow/B00_expenses.csv"
 )
 df_incomes = pd.read_csv(
-    filepath_or_buffer="D:/SynologyDrive/Finance/data/datahub/application/cashflow/b_00_incomes.csv"
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/cashflow/B00_incomes.csv"
 )
 df_expenses["date"] = pd.to_datetime(df_expenses["date"], format="%Y-%m-%d")
 df_expenses = df_expenses.set_index("date")
 df_incomes["date"] = pd.to_datetime(df_incomes["date"], format="%Y-%m-%d")
 df_incomes = df_incomes.set_index("date")
 
-df_orders = pd.DataFrame()
-df_timeseries = pd.DataFrame()
+# df_orders = pd.DataFrame()
+# df_timeseries = pd.DataFrame()
 portfolio_crypto_value = pd.DataFrame()
-portfolio_monthly = pd.DataFrame()
+# portfolio_monthly = pd.DataFrame()
 portfolio_value = pd.DataFrame()
 
 # (df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
 #     df_cashflow_init, _, portfolio_crypto) = pl.load_data()
-DATAHUB_ROOT_FILEPATH = "D:/SynologyDrive/Finance/data/datahub/"
 filepath_source = Path(DATAHUB_ROOT_FILEPATH) / "source" / "stocks"
 orders_init = load_data(
     filepath_source / "source_stocks_portfolio_trades.ods",
     file_type="excel",
     sheet_name="Buys",
 )
-df_etf = pd.read_csv(
-    filepath_or_buffer=filepath_source / "source_master_data.csv"
+# TODO: Correctly handle cases of non-retrievable data from yahoo instead of dropping it
+df_etf = (
+    pd.read_csv(filepath_or_buffer=filepath_source / "source_master_data.csv")
+    .drop(columns=["comment"], axis=1)
+    .dropna()
 )
+df_etf["ter"] = df_etf["ter"].str.replace(",", ".").astype(float)
 
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
 
@@ -69,7 +73,7 @@ df_orders = pl.preprocess_orders(orders_init)
 
 orders_etf = pl.enrich_orders(df_orders, df_etf)
 portfolio_monthly = pl.get_current_portfolio(orders_etf)
-portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
+# portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
 #
 # portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)
 #

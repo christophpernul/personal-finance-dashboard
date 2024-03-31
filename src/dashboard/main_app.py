@@ -40,19 +40,16 @@ def switch_tabs(tab):
         html_div = apps_portfolio.html_income_tab()
         return html_div
     elif tab == "tab-portfolio-overview":
-        group_cols = ["Region", "Type", "Distributing", "Replicationmethod"]
+        group_cols = ["region", "etf_type", "distribution", "replication"]
         compute_cols = ["Investment", "Investment", "Investment", "Investment"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused
-        # html_div = apps_portfolio.html_portfolio_overview(portfolio_monthly,
-        #                                                   group_cols,
-        #                                                   compute_cols,
-        #                                                   agg_functions
-        #                                                   )
-        html_div = HTML_NO_CONTENT
+        html_div = apps_portfolio.html_portfolio_overview(
+            portfolio_monthly, group_cols, compute_cols, agg_functions
+        )
         return html_div
     elif tab == "tab-portfolio-value":
-        group_cols = ["Region", "Type", "Distributing", "Replicationmethod"]
+        group_cols = ["region", "etf_type", "distribution", "replication"]
         compute_cols = ["Value", "Value", "Value", "Value"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused

@@ -1,21 +1,22 @@
 import pandas as pd
 
-# def preprocess_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Preprocessing of price dataframe. Get latest available price.
-#     :param df_prices: Needed columns: ISIN, Price, Datum, Currency
-#     :return: dataframe containing prices of stocks defined by ISIN on latest available date
-#     """
-#     dfp = df_prices.copy()
-#     assert dfp["Currency"].drop_duplicates().count() == 1, "Multiple currencies used for price data!"
-#     assert dfp["Currency"].iloc[0] == "EUR", "Currency is not Euro!"
-#
-#     dfp["date"] = pd.to_datetime(dfp["date"], format="%d.%m.%Y")
-#     latest_date = dfp["date"].max()
-#     df_current_prices = dfp[dfp["date"] == latest_date].reset_index(drop=True)
-#     return(df_current_prices)
-#
-#
+# def fetch_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
+#     """Extracts historic price data for relevant etfs."""
+#     prices = pd.DataFrame(columns=["Date", "Close"])
+#     for isin in etf_isins:
+#         try:
+#             price_isin = yf.Ticker(isin).history(period="1d")
+#             price_isin["isin"] = isin
+#         except:
+#             print(f"Cannot find price data for `{isin}` via yahoo finance!")
+#             continue
+#         prices = pd.concat([prices, price_isin[["isin", "Close"]].reset_index()], ignore_index=True)
+#     prices.rename(columns={"Close": "price",
+#                            "Date": "date"
+#                            })
+#     return prices
+
+
 def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
     """
     Set datatypes of columns and split input into dividends transactions and savings-plan transactions.
@@ -180,39 +181,51 @@ def get_current_portfolio(df_orders: pd.DataFrame) -> pd.DataFrame:
     return portfolio
 
 
-# def compute_percentage_per_group(df: pd.DataFrame, group_names: list, compute_columns:list, agg_functions:list) -> list:
-#     """
-#     Computes len(group_names) aggregations of input dataframe df according to the given agg_functions wrt to the
-#     specified columns in compute_columns.
-#     These three lists need to have the same length!
-#     Currently only sum() as aggregate function is available.
-#     :param df: pd.DataFrame, that needs to have all columns specified in group_names, compute_columns
-#     :param group_names: list of grouping columns
-#     :param compute_columns: list of columns along which groupby computation should be done
-#     :param agg_functions: list of aggregate functions, which are applied to compute_columns
-#     :return result_list: list of resulting dataframes after groupby aggregation
-#     """
-#     all_columns = set(df.columns)
-#     all_needed_columns = set(group_names).union(set(compute_columns))
-#     assert all_columns.intersection(all_needed_columns) == all_needed_columns, "Columns not present!"
-#     assert len(group_names) == len(compute_columns), "Number of grouping columns does not match compute columns!"
-#     assert len(group_names) == len(
-#         agg_functions), "Number of grouping columns does not match number of aggregate functions!"
-#
-#     df_copy = df.copy()
-#     result_list = []
-#     for idx, group in enumerate(group_names):
-#         compute_col = compute_columns[idx]
-#         agg_func = agg_functions[idx]
-#         if agg_func == "sum":
-#             df_grouped = df_copy[[group, compute_col]].groupby([group]).sum()
-#         total_sum = df_copy[compute_col].sum()
-#         df_grouped["Percentage"] = round(df_grouped[compute_col] / total_sum, 3) * 100
-#         result_list.append(df_grouped.reset_index())
-#
-#     return (result_list)
-#
-#
+def compute_percentage_per_group(
+    df: pd.DataFrame,
+    group_names: list,
+    compute_columns: list,
+    agg_functions: list,
+) -> list:
+    """
+    Computes len(group_names) aggregations of input dataframe df according to the given agg_functions wrt to the
+    specified columns in compute_columns.
+    These three lists need to have the same length!
+    Currently only sum() as aggregate function is available.
+    :param df: pd.DataFrame, that needs to have all columns specified in group_names, compute_columns
+    :param group_names: list of grouping columns
+    :param compute_columns: list of columns along which groupby computation should be done
+    :param agg_functions: list of aggregate functions, which are applied to compute_columns
+    :return result_list: list of resulting dataframes after groupby aggregation
+    """
+    all_columns = set(df.columns)
+    all_needed_columns = set(group_names).union(set(compute_columns))
+    assert (
+        all_columns.intersection(all_needed_columns) == all_needed_columns
+    ), "Columns not present!"
+    assert len(group_names) == len(
+        compute_columns
+    ), "Number of grouping columns does not match compute columns!"
+    assert len(group_names) == len(
+        agg_functions
+    ), "Number of grouping columns does not match number of aggregate functions!"
+
+    df_copy = df.copy()
+    result_list = []
+    for idx, group in enumerate(group_names):
+        compute_col = compute_columns[idx]
+        agg_func = agg_functions[idx]
+        if agg_func == "sum":
+            df_grouped = df_copy[[group, compute_col]].groupby([group]).sum()
+        total_sum = df_copy[compute_col].sum()
+        df_grouped["Percentage"] = (
+            round(df_grouped[compute_col] / total_sum, 3) * 100
+        )
+        result_list.append(df_grouped.reset_index())
+
+    return result_list
+
+
 def get_portfolio_value(
     df_trx: pd.DataFrame, df_prices: pd.DataFrame
 ) -> pd.DataFrame:
@@ -358,7 +371,9 @@ def prepare_timeseries(orders: pd.DataFrame):
     price_lookup = orders[["date", "Name", "Price"]].copy()
 
     ### Compute cumsum() per stockgroup and rejoin date
-    df_grouped = df_init.sort_values("date").groupby("Name").cumsum()
+    df_grouped = (
+        df_init.sort_values("date").groupby("Name")[group_columns].cumsum()
+    )
     df_grouped_all = df_init.merge(
         df_grouped,
         how="left",
