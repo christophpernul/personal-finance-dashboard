@@ -7,8 +7,13 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
+from pathlib import Path
 
-# from datahub.processing_layer import lib_data_operations as pl
+# TODO: All datahub functionalities need to be dropped!
+from src.datahub.utilities.utils import load_data
+
+from src.datahub.processing_layer import lib_data_operations as pl
+
 # from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
 app = dash.Dash(
     __name__,
@@ -39,9 +44,20 @@ portfolio_value = pd.DataFrame()
 
 # (df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
 #     df_cashflow_init, _, portfolio_crypto) = pl.load_data()
+DATAHUB_ROOT_FILEPATH = "D:/SynologyDrive/Finance/data/datahub/"
+filepath_source = Path(DATAHUB_ROOT_FILEPATH) / "source" / "stocks"
+orders_init = load_data(
+    filepath_source / "source_stocks_portfolio_trades.ods",
+    file_type="excel",
+    sheet_name="Buys",
+)
+df_etf = pd.read_csv(
+    filepath_or_buffer=filepath_source / "source_master_data.csv"
+)
+
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
 
-# df_orders = pl.preprocess_orders(df_orders_init)
+df_orders = pl.preprocess_orders(orders_init)
 # df_prices = pl.preprocess_prices(df_prices_init)
 # df_etf = pl.preprocess_etf_masterdata(df_etf_init)
 # df_cashflow = pl.cleaning_cashflow(df_cashflow_init)
@@ -51,11 +67,11 @@ portfolio_value = pd.DataFrame()
 # (caution_income, df_incomes) = pl.preprocess_cashflow(df_income_total)
 
 
-# orders_etf = pl.enrich_orders(df_orders, df_etf)
-# portfolio_monthly = pl.get_current_portfolio(orders_etf)
-# portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
+orders_etf = pl.enrich_orders(df_orders, df_etf)
+portfolio_monthly = pl.get_current_portfolio(orders_etf)
+portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
 #
 # portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)
 #
 #
-# df_timeseries = pl.prepare_timeseries(df_orders)
+df_timeseries = pl.prepare_timeseries(df_orders)
