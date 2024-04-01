@@ -13,7 +13,6 @@ from pathlib import Path
 from utils.file_io import load_data
 
 from src.datahub.processing_layer.lib_data_operations import (
-    fetch_prices,
     preprocess_etf_masterdata,
     preprocess_orders,
     enrich_orders,

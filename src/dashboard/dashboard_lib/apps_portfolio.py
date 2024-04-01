@@ -297,7 +297,7 @@ def html_portfolio_overview(
 
     overview_table = overview_table.drop(["cost_per_year"], axis=1)
 
-    all_group_columns = ["name", "isin", "ter"] + group_columns
+    all_group_columns = ["name", "isin", "ter", "depot"] + group_columns
     overview_table = (
         overview_table.groupby(all_group_columns)[cost_column_name]
         .sum()
