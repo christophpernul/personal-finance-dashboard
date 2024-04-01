@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-from ..utilities.utils import load_data, save_data
+from utils import load_data, save_data
 
 logger = logging.getLogger(__name__)
 

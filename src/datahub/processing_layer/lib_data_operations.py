@@ -1,5 +1,7 @@
 import pandas as pd
 
+from utils.datacleaning import clean
+
 # def fetch_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
 #     """Extracts historic price data for relevant etfs."""
 #     prices = pd.DataFrame(columns=["Date", "Close"])
@@ -17,96 +19,93 @@ import pandas as pd
 #     return prices
 
 
-def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
-    """
-    Set datatypes of columns and split input into dividends transactions and savings-plan transactions.
-    :param df_orders: Includes all transaction data of the portfolio, all columns in list portfolio_columns
-                        need to be present, Kommentar column needs to be either "monatlich" (transaction of the
-                        savings plan, an ETF is bought) or "Dividende" (income)
-    :return: tuple of orders- and dividend transaction entries
-    """
-    orders_portfolio = df_orders.copy()
-    portfolio_columns = [
-        "Index",
-        "Datum",
-        "Kurs",
-        "Betrag",
-        "Kosten",
-        "Anbieter",
-        "Name",
-        "ISIN",
-    ]
-    new_portfolio_columns = [
-        "Index",
+def preprocess_orders(orders: pd.DataFrame) -> pd.DataFrame:
+    """Select necessary columns, clean data and provide positive amount and costs."""
+    orders_out = orders.copy()
+
+    # Keep valid orders
+    orders_out = orders_out[~orders_out["amount"].isna()]
+    orders_out = orders_out[orders_out["type"] == "ETF Sparplan"]
+    orders_out = orders_out[~orders_out["date"].isna()]
+
+    # Select necessary columns
+    necessary_columns = [
+        "depot",
+        "type",
+        "amount",
         "date",
-        "Price",
-        "Investment",
-        "Ordercost",
-        "Depotprovider",
-        "Name",
-        "ISIN",
+        "isin",
+        "index",
+        "cost",
+        "price",
+        "name",
     ]
-    rename_columns = {
-        key: value
-        for key, value in zip(portfolio_columns, new_portfolio_columns)
-    }
-
-    orders_portfolio = orders_portfolio.rename(columns=rename_columns)
-
-    assert set(orders_portfolio.columns).intersection(
-        set(new_portfolio_columns)
-    ) == set(
-        new_portfolio_columns
+    assert set(orders_out.columns).intersection(set(necessary_columns)) == set(
+        necessary_columns
     ), "Some necessary columns are missing in the input dataframe!"
+    orders_out = orders_out[necessary_columns]
 
-    ### Keep only valid entries
-    orders_portfolio = orders_portfolio[~orders_portfolio["Investment"].isna()]
-    orders_portfolio = orders_portfolio[
-        orders_portfolio["Art"] == "ETF Sparplan"
-    ]
-
-    orders_portfolio = orders_portfolio[new_portfolio_columns]
-    orders_portfolio = orders_portfolio[~orders_portfolio["date"].isna()]
-    orders_portfolio["date"] = pd.to_datetime(
-        orders_portfolio["date"], format="%d.%m.%Y"
+    # Data cleaning and data type conversion
+    orders_out = clean(
+        data=orders_out,
+        strip_columns=[
+            "date",
+            "type",
+            "depot",
+            "name",
+            "isin",
+        ],
     )
-    orders_portfolio["Index"] = orders_portfolio["Index"].astype(int)
+    orders_out["date"] = pd.to_datetime(orders_out["date"], format="%d.%m.%Y")
+    orders_out["index"] = orders_out["index"].astype(int)
 
+    # Preprocess
     assert (
-        orders_portfolio[orders_portfolio["Investment"] > 0.0].count() != 0
-    ).any() == False, "Positive Einträge im Orderportfolio!"
-    orders_portfolio["Investment"] = -orders_portfolio["Investment"]
-    orders_portfolio["Ordercost"] = -orders_portfolio["Ordercost"]
+        orders_out[orders_out["amount"] > 0.0].count() != 0
+    ).any() == False, "There should be no positive values in amount column!"
+    orders_out["amount"] = -orders_out["amount"]
+    orders_out["cost"] = -orders_out["cost"]
 
-    return orders_portfolio
+    return orders_out
 
 
-#
-#
-# def preprocess_etf_masterdata(df_master: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Convert columns "physical" and "Acc" to booleans and map all entries in "Region" containing "Emerging" to "Emerging"
-#     :param df_master: Master data of all ETFs, columns in etf_columns are required
-#     :return: preprocessed dataframe
-#     """
-#     etf_master = df_master.copy()
-#     etf_columns = ["Type", "Name", "ISIN", "Region", "Replikationsmethode", "Ausschüttung", "TER%"]
-#     new_etf_columns = ["Type", "Name", "ISIN", "Region", "Replicationmethod", "Distributing", "TER%"]
-#     etf_master = etf_master.rename(columns={key: value for key, value in zip(etf_columns, new_etf_columns)})
-#
-#     assert set(etf_master.columns).intersection(set(new_etf_columns)) == set(new_etf_columns), \
-#         "Some necessary columns are missing in the input dataframe!"
-#
-#     etf_master = etf_master[new_etf_columns]
-#
-#     etf_master["Replicationmethod"] = etf_master["Replicationmethod"].map(lambda x: "Physical" \
-#                                                                             if x[:8] == "Physisch" else "Synthetic")
-#     etf_master["Distributing"] = etf_master["Distributing"].map(lambda x: "Distributing" \
-#         if x == "Ausschüttend" else "Accumulating")
-#     etf_master["Region"] = etf_master["Region"].fillna("").map(lambda x: "Emerging" if "Emerging" in x else x)
-#     return (etf_master)
-#
-#
+def preprocess_etf_masterdata(master_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Selects necessary columns, cleans data and performs preprocessing:
+    - Convert ter to float
+    """
+    master_data_out = master_data.copy()
+
+    necessary_columns = [
+        "isin",
+        "name",
+        "symbol",
+        "type",
+        "currency",
+        "distribution",
+        "replication",
+        "ter",
+        "region",
+        "etf_type",
+    ]
+    # Select necessary columns
+    assert set(master_data_out.columns).intersection(
+        set(necessary_columns)
+    ) == set(
+        necessary_columns
+    ), "Some necessary columns are missing in the input dataframe!"
+    master_data_out = master_data_out[necessary_columns]
+
+    # Data Cleaning & Preprocessing
+    clean(data=master_data_out, strip_columns=list(master_data_out.columns))
+
+    master_data_out["ter"] = (
+        master_data_out["ter"].str.replace(",", ".").astype(float)
+    )
+
+    return master_data_out
+
+
 # def compute_crypto_portfolio_value(portfolio: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
 #     """
 #     Combines current crypto-price data with portfolio and computes value per exchange/currency.
@@ -132,14 +131,18 @@ def preprocess_orders(df_orders: pd.DataFrame) -> pd.DataFrame:
 #     return(portfolio_value)
 #
 #
-def enrich_orders(df_orders, df_etf):
-    """
-    Join ETF master data to transaction data of ETFs.
-    :param df_orders: ETF transaction data
-    :param df_etf: ETF master data
-    :return:
-    """
-    join_columns_etf_master = [
+def enrich_orders(orders, master_data):
+    """Enrich ETF orders with master data."""
+    # Drop columns that occur in master_data too
+    orders_temp = orders.copy().drop(
+        columns=[
+            "name",
+            "type",
+        ],
+        axis=1,
+    )
+
+    join_columns_master = [
         "isin",
         "name",
         "type",
@@ -149,40 +152,39 @@ def enrich_orders(df_orders, df_etf):
         "distribution",
         "ter",
     ]
-    orders_etf = df_orders.merge(
-        df_etf[join_columns_etf_master].drop_duplicates(),
+    orders_temp = orders_temp.merge(
+        master_data[join_columns_master].drop_duplicates(),
         how="inner",
-        left_on="ISIN",
+        left_on="isin",
         right_on="isin",
-    ).copy()
+    )
+    orders_temp["cost_per_year"] = (
+        12 * orders_temp["amount"] * orders_temp["ter"] / 100
+    )
 
     assert (
-        orders_etf[orders_etf["region"].isna()][["ISIN", "name"]]
+        orders_temp[orders_temp[join_columns_master].isna()][["isin", "name"]]
         .drop_duplicates()
         .count()
         > 0
     ).any() == False, "No ETF master data!"
-    return orders_etf
+    return orders_temp
 
 
-def get_current_portfolio(df_orders: pd.DataFrame) -> pd.DataFrame:
-    """
-    Gets transactions of latest executed monthly savings plan of ETF portfolio.
-    :param df_orders: ETF transaction data
-    :return:
-    """
-    portfolio = df_orders.copy()
-    last_execution_index = portfolio["Index"].max()
+def get_current_portfolio(orders: pd.DataFrame) -> pd.DataFrame:
+    """Gets transactions of latest executed monthly savings plan of ETF portfolio."""
+    portfolio = orders.copy()
+    last_execution_index = portfolio["index"].max()
     portfolio = (
-        portfolio[portfolio["Index"] == last_execution_index]
+        portfolio[portfolio["index"] == last_execution_index]
         .reset_index(drop=True)
-        .drop("Index", axis=1)
+        .drop("index", axis=1)
     )
     return portfolio
 
 
 def compute_percentage_per_group(
-    df: pd.DataFrame,
+    current_portfolio: pd.DataFrame,
     group_names: list,
     compute_columns: list,
     agg_functions: list,
@@ -192,17 +194,17 @@ def compute_percentage_per_group(
     specified columns in compute_columns.
     These three lists need to have the same length!
     Currently only sum() as aggregate function is available.
-    :param df: pd.DataFrame, that needs to have all columns specified in group_names, compute_columns
+    :param current_portfolio: pd.DataFrame, that needs to have all columns specified in group_names, compute_columns
     :param group_names: list of grouping columns
     :param compute_columns: list of columns along which groupby computation should be done
     :param agg_functions: list of aggregate functions, which are applied to compute_columns
     :return result_list: list of resulting dataframes after groupby aggregation
     """
-    all_columns = set(df.columns)
+    all_columns = set(current_portfolio.columns)
     all_needed_columns = set(group_names).union(set(compute_columns))
     assert (
         all_columns.intersection(all_needed_columns) == all_needed_columns
-    ), "Columns not present!"
+    ), "Columns not present in current portfolio to calculate aggregation per group!"
     assert len(group_names) == len(
         compute_columns
     ), "Number of grouping columns does not match compute columns!"
@@ -210,15 +212,21 @@ def compute_percentage_per_group(
         agg_functions
     ), "Number of grouping columns does not match number of aggregate functions!"
 
-    df_copy = df.copy()
+    portfolio_temp = current_portfolio.copy()
     result_list = []
     for idx, group in enumerate(group_names):
         compute_col = compute_columns[idx]
         agg_func = agg_functions[idx]
         if agg_func == "sum":
-            df_grouped = df_copy[[group, compute_col]].groupby([group]).sum()
-        total_sum = df_copy[compute_col].sum()
-        df_grouped["Percentage"] = (
+            df_grouped = (
+                portfolio_temp[[group, compute_col]].groupby([group]).sum()
+            )
+        else:
+            raise NotImplemented(
+                f"Other aggregation functions than `sum()` are not implemented yet!"
+            )
+        total_sum = portfolio_temp[compute_col].sum()
+        df_grouped["percentage"] = (
             round(df_grouped[compute_col] / total_sum, 3) * 100
         )
         result_list.append(df_grouped.reset_index())
@@ -240,8 +248,8 @@ def get_portfolio_value(
             "Some entries contain NaN values! The statistics might be wrong!"
         )
         print(df_trx.isna().sum())
-    needed_columns_trx = set(["Investment", "Price", "ISIN"])
-    needed_columns_prices = set(["Price", "ISIN"])
+    needed_columns_trx = set(["amount", "price", "isin"])
+    needed_columns_prices = set(["price", "isin"])
     assert (
         needed_columns_trx.intersection(set(df_trx.columns))
         == needed_columns_trx
@@ -258,18 +266,18 @@ def get_portfolio_value(
     dfp = df_prices.copy()
 
     ### Compute amount of stocks bought
-    df["Amount"] = df["Investment"] / df["Price"]
+    df["shares"] = df["amount"] / df["price"]
     ### Drop price of orderdata, which is the price at which a stock was bought --> here we use the current price
-    df = df.drop("Price", axis=1)
+    df = df.drop("price", axis=1)
 
     df_portfolio = df.merge(
-        dfp, how="left", left_on="ISIN", right_on="ISIN", suffixes=["", "_y"]
-    ).rename(columns={"Date_y": "last_price_update"})
+        dfp, how="left", left_on="isin", right_on="isin", suffixes=["", "_y"]
+    ).rename(columns={"date_y": "last_price_update"})
     assert (
-        df_portfolio["Price"].isna().sum() > 0
+        df_portfolio["price"].isna().sum() > 0
     ).any() == False, "Prices are missing for a transaction!"
-    df_portfolio["Value"] = round(
-        df_portfolio["Amount"] * df_portfolio["Price"], 2
+    df_portfolio["value"] = round(
+        df_portfolio["shares"] * df_portfolio["price"], 2
     )
 
     return df_portfolio
@@ -308,8 +316,8 @@ def filter_portfolio_date(
 #     :param stock_name: Name of the stock, to which the dataframe should be filtered.
 #     :return: dataframe filtered on the specified stock name
 #     """
-#     assert "Name" in portfolio.columns, 'Column "Name" is missing in input dataframe!'
-#     return(portfolio[portfolio["Name"] == stock_name])
+#     assert "name" in portfolio.columns, 'Column "name" is missing in input dataframe!'
+#     return(portfolio[portfolio["name"] == stock_name])
 #
 # def prepare_orderAmounts_prices(orders: pd.DataFrame):
 #     """
@@ -318,10 +326,10 @@ def filter_portfolio_date(
 #     :param orders: Holds price and investmentamount data for each stock at every date.
 #     :return: Tuple of orders (including amount of stocks) and prices.
 #     """
-#     prices = orders[["date", "Name", "Price"]]
-#     necessary_columns = ["date", "Name", "Investment", "Ordercost", "Amount"]
+#     prices = orders[["date", "name", "Price"]]
+#     necessary_columns = ["date", "name", "Investment", "Ordercost", "shares"]
 #     df_orders = orders.drop_duplicates().copy()
-#     df_orders["Amount"] = df_orders["Investment"] / df_orders["Price"]
+#     df_orders["shares"] = df_orders["Investment"] / df_orders["Price"]
 #     df_orders = df_orders[necessary_columns]
 #     return((df_orders, prices))
 
@@ -334,11 +342,11 @@ def prepare_timeseries(orders: pd.DataFrame):
     :param orders: dataframe, containing Investmentamount, ordercost and price for each stock per transactiondate
     :return:
     """
-    necessary_columns = ["date", "Name", "Investment", "Price", "Ordercost"]
+    necessary_columns = ["date", "name", "amount", "price", "cost"]
     assert set(orders.columns).intersection(set(necessary_columns)) == set(
         necessary_columns
     ), "Necessary columns missing in order data for timeseries preparation!"
-    orders["Amount"] = orders["Investment"] / orders["Price"]
+    orders["shares"] = orders["amount"] / orders["price"]
     ### Map each transaction-date to the beginning of the month for easier comparison
     orders["date"] = orders["date"].apply(
         lambda date: pd.offsets.MonthBegin().rollback(date)
@@ -346,7 +354,7 @@ def prepare_timeseries(orders: pd.DataFrame):
 
     ### Prepare master data of all stocks and dates in order history
     ### TODO: Refine all data preprocessing to just once define master data for all needed tasks
-    all_stocks = pd.DataFrame(orders["Name"].drop_duplicates()).copy()
+    all_stocks = pd.DataFrame(orders["name"].drop_duplicates()).copy()
     all_stocks["key"] = 0
     all_dates = pd.DataFrame(orders["date"].drop_duplicates()).copy()
     all_dates["key"] = 0
@@ -357,22 +365,22 @@ def prepare_timeseries(orders: pd.DataFrame):
     ### Prepare dataframe, that gets converted to a timeseries, it has entries of all stocks, that were
     ### bought in the past at each transaction-date (stock data for stocks, which were not bought at that date,
     ### is filled with 0 to enable correct computation of cumsum()
-    group_columns = ["Investment", "Ordercost", "Amount"]
+    group_columns = ["amount", "cost", "shares"]
     df_init = (
         all_combinations.merge(
-            orders[["date", "Name"] + group_columns],
+            orders[["date", "name"] + group_columns],
             how="left",
-            left_on=["date", "Name"],
-            right_on=["date", "Name"],
+            left_on=["date", "name"],
+            right_on=["date", "name"],
         )
         .fillna(0)
         .copy()
     )
-    price_lookup = orders[["date", "Name", "Price"]].copy()
+    price_lookup = orders[["date", "name", "price"]].copy()
 
     ### Compute cumsum() per stockgroup and rejoin date
     df_grouped = (
-        df_init.sort_values("date").groupby("Name")[group_columns].cumsum()
+        df_init.sort_values("date").groupby("name")[group_columns].cumsum()
     )
     df_grouped_all = df_init.merge(
         df_grouped,
@@ -382,34 +390,34 @@ def prepare_timeseries(orders: pd.DataFrame):
         suffixes=["_init", None],
     )
     df_grouped_all = df_grouped_all.drop(
-        ["Investment_init", "Ordercost_init", "Amount_init"], axis=1
+        ["amount_init", "cost_init", "shares_init"], axis=1
     )
     ### Rejoin prices and compute values for each stock at each date, fill values of stocks, which were not
     ### bought at that date again with 0s
     df_grouped_all = df_grouped_all.merge(
         price_lookup,
         how="left",
-        left_on=["date", "Name"],
-        right_on=["date", "Name"],
+        left_on=["date", "name"],
+        right_on=["date", "name"],
         suffixes=[None, "_y"],
     )
-    df_grouped_all["Value"] = (
-        df_grouped_all["Amount"] * df_grouped_all["Price"]
+    df_grouped_all["value"] = (
+        df_grouped_all["shares"] * df_grouped_all["price"]
     )
     df_grouped_all = df_grouped_all.drop(
-        ["Amount", "Price"], axis=1
+        ["shares", "price"], axis=1
     )  # .fillna(0)
 
     ### Finally sum over stock values at each date to arrive at timeseries format
     df_overall = (
         df_grouped_all.sort_values("date")
         .set_index("date")
-        .drop(["Name"], axis=1)
+        .drop(["name"], axis=1)
         .groupby("date")
         .sum()
         .reset_index()
     )
-    df_overall["Name"] = "Overall Portfolio"
+    df_overall["name"] = "Overall Portfolio"
     df_timeseries = pd.concat(
         [df_grouped_all, df_overall], ignore_index=True, sort=False
     )

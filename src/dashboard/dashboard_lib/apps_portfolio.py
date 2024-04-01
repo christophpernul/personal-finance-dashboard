@@ -6,7 +6,7 @@ from dash.dependencies import Input, Output
 ### Import app (to define callbacks) and necessary preprocessed data
 from dashboard.dashboard_lib.app import (
     app,
-    df_orders,
+    orders,
     df_timeseries,
     df_expenses,
     df_incomes,
@@ -251,7 +251,7 @@ def html_portfolio_overview(
     group_columns: list,
     compute_columns: list,
     aggregation_columns: list,
-    cost_column_name="Investment",
+    cost_column_name="amount",
     title="Overview monthly Savings Plan",
     title_kpi_cost="Monthly Investment",
     show_last_updated=False,
@@ -272,42 +272,40 @@ def html_portfolio_overview(
     :param show_last_updated: Flag, whether the date of the last price update of the title_kpi_cost is shown
     :return: HTML div element
     """
-    ################################ Prepare data for remainder ########################################################
-    grouped_portfolio = pl.compute_percentage_per_group(
-        portfolio, group_columns, compute_columns, aggregation_columns
+    overview_table = portfolio.copy()
+
+    # Calculate aggregated data for piecharts
+    type_aggregations = pl.compute_percentage_per_group(
+        overview_table, group_columns, compute_columns, aggregation_columns
     )
 
-    portfolio_view = portfolio.copy()
     if show_last_updated == True:
         assert (
-            len(set(portfolio_view["last_price_update"])) == 1
+            len(set(overview_table["last_price_update"])) == 1
         ), "Multiply dates for last price update in portfolio!"
-        last_updated = str(portfolio_view["last_price_update"].iloc[0]).split(
+        last_updated = str(overview_table["last_price_update"].iloc[0]).split(
             " "
         )[0]
         title_kpi_cost = title_kpi_cost + " (" + last_updated + ")"
 
-    portfolio_view["cost/a"] = (
-        12 * portfolio_view[cost_column_name] * portfolio_view["ter"] / 100
-    )
-    total_costs = round(portfolio_view[cost_column_name].sum(), 2)
+    total_costs = round(overview_table[cost_column_name].sum(), 2)
     average_TER = round(
-        (portfolio_view["cost/a"] / (12 * total_costs)).sum() * 100, 3
+        (overview_table["cost_per_year"] / (12 * total_costs)).sum() * 100, 3
     )
 
-    portfolio_view = portfolio_view.drop(["cost/a"], axis=1)
+    overview_table = overview_table.drop(["cost_per_year"], axis=1)
 
-    all_group_columns = ["Name", "ISIN", "ter"] + group_columns
-    portfolio_view = (
-        portfolio_view.groupby(all_group_columns)[cost_column_name]
+    all_group_columns = ["name", "isin", "ter"] + group_columns
+    overview_table = (
+        overview_table.groupby(all_group_columns)[cost_column_name]
         .sum()
         .reset_index()
         .sort_values(cost_column_name, ascending=False)
     )
 
-    portfolio_view = portfolio_view[all_group_columns + [cost_column_name]]
+    overview_table = overview_table[all_group_columns + [cost_column_name]]
 
-    ################################ Define Dash App configuration ### #####################################################
+    ################################ Define Dash App configuration ########################################################
 
     heading = dbc.Col(
         dbc.Card(
@@ -349,7 +347,7 @@ def html_portfolio_overview(
 
     dataframe_panel = dbc.Card(
         dbc.CardBody(
-            dpl.show_dataframe(portfolio_view, style_dict=theme_colors)
+            dpl.show_dataframe(overview_table, style_dict=theme_colors)
         ),
     )
 
@@ -357,9 +355,9 @@ def html_portfolio_overview(
         [
             dbc.Col(
                 dpl.show_piechart(
-                    grouped_portfolio[0],
+                    type_aggregations[0],
                     group_columns[0],
-                    "Percentage",
+                    "percentage",
                     theme_colors,
                 ),
                 width=3,
@@ -367,9 +365,9 @@ def html_portfolio_overview(
             ),
             dbc.Col(
                 dpl.show_piechart(
-                    grouped_portfolio[1],
+                    type_aggregations[1],
                     group_columns[1],
-                    "Percentage",
+                    "percentage",
                     theme_colors,
                 ),
                 width=3,
@@ -377,9 +375,9 @@ def html_portfolio_overview(
             ),
             dbc.Col(
                 dpl.show_piechart(
-                    grouped_portfolio[2],
+                    type_aggregations[2],
                     group_columns[2],
-                    "Percentage",
+                    "percentage",
                     theme_colors,
                 ),
                 width=3,
@@ -387,9 +385,9 @@ def html_portfolio_overview(
             ),
             dbc.Col(
                 dpl.show_piechart(
-                    grouped_portfolio[3],
+                    type_aggregations[3],
                     group_columns[3],
-                    "Percentage",
+                    "percentage",
                     theme_colors,
                 ),
                 width=3,
@@ -426,7 +424,7 @@ def html_portfolio_overview(
 #
 #     )
 #     stock_default = "Overall Portfolio"
-#     distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+#     distinct_stocks = list(df_orders["name"].drop_duplicates().sort_values())
 #     distinct_stocks.append(stock_default)
 #
 #     dropdown_stocks = dcc.Dropdown(options=[

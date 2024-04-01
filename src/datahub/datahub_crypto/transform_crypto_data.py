@@ -1,5 +1,5 @@
 import pandas as pd
-from ..utilities.utils import save_data
+from utils import save_data
 from ..datahub_stocks.extract_stocks_data import (
     extract_conversion_rate_usDollar_euro,
 )

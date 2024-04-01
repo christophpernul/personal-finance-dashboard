@@ -10,9 +10,15 @@ import pandas as pd
 from pathlib import Path
 
 # TODO: All datahub functionalities need to be dropped!
-from src.datahub.utilities.utils import load_data
+from utils.file_io import load_data
 
-from src.datahub.processing_layer import lib_data_operations as pl
+from src.datahub.processing_layer.lib_data_operations import (
+    preprocess_etf_masterdata,
+    preprocess_orders,
+    enrich_orders,
+    get_current_portfolio,
+    prepare_timeseries,
+)
 
 # from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
 app = dash.Dash(
@@ -37,45 +43,34 @@ df_expenses = df_expenses.set_index("date")
 df_incomes["date"] = pd.to_datetime(df_incomes["date"], format="%Y-%m-%d")
 df_incomes = df_incomes.set_index("date")
 
-# df_orders = pd.DataFrame()
-# df_timeseries = pd.DataFrame()
+# TODO: Drop this empty data for unused tabs!
 portfolio_crypto_value = pd.DataFrame()
-# portfolio_monthly = pd.DataFrame()
 portfolio_value = pd.DataFrame()
 
-# (df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
-#     df_cashflow_init, _, portfolio_crypto) = pl.load_data()
+# ---------------- EXTRACT --------------------
 filepath_source = Path(DATAHUB_ROOT_FILEPATH) / "source" / "stocks"
 orders_init = load_data(
     filepath_source / "source_stocks_portfolio_trades.ods",
     file_type="excel",
     sheet_name="Buys",
 )
-# TODO: Correctly handle cases of non-retrievable data from yahoo instead of dropping it
-df_etf = (
-    pd.read_csv(filepath_or_buffer=filepath_source / "source_master_data.csv")
-    .drop(columns=["comment"], axis=1)
-    .dropna()
+master_data_init = pd.read_csv(
+    filepath_or_buffer=filepath_source / "source_master_data.csv"
 )
-df_etf["ter"] = df_etf["ter"].str.replace(",", ".").astype(float)
 
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
 
-df_orders = pl.preprocess_orders(orders_init)
+# ----------------- PREPROCESS --------------------
+orders = preprocess_orders(orders_init)
+master_data = preprocess_etf_masterdata(master_data_init)
 # df_prices = pl.preprocess_prices(df_prices_init)
-# df_etf = pl.preprocess_etf_masterdata(df_etf_init)
-# df_cashflow = pl.cleaning_cashflow(df_cashflow_init)
-# (incomes, expenses) = pl.split_cashflow_data(df_cashflow)
-# (caution_expenses, df_expenses) = pl.preprocess_cashflow(expenses)
-# df_income_total = pl.combine_incomes(incomes, df_income_init)
-# (caution_income, df_incomes) = pl.preprocess_cashflow(df_income_total)
 
 
-orders_etf = pl.enrich_orders(df_orders, df_etf)
-portfolio_monthly = pl.get_current_portfolio(orders_etf)
+# -------------- TRANSFORM ----------------------
+orders_enriched = enrich_orders(orders, master_data)
+current_portfolio = get_current_portfolio(orders_enriched)
 # portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
-#
+
+df_timeseries = prepare_timeseries(orders)
+
 # portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)
-#
-#
-df_timeseries = pl.prepare_timeseries(df_orders)

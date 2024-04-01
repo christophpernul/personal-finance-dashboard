@@ -10,7 +10,7 @@ from datahub.datahub_stocks.transform_stocks_data import (
     transform_etf_master,
     transform_historization_etf_prices,
 )
-from datahub.utilities.utils import load_json, load_data
+from utils.utils import load_json, load_data
 
 file_path_config = "datahub/meta_datahub.json"
 DATAHUB_CONFIG = load_json(file_path_config)

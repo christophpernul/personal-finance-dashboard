@@ -85,13 +85,13 @@ def show_piechart(
 #     :return: html element consisting of a timeseries plot
 #     """
 #     try:
-#         fig = px.line(df_timeseries, x='Date', y=['Investment', 'Value'])
+#         fig = px.line(df_timeseries, x='date', y=['amount', 'value'])
 #     except:
 #         ### In case the dataframe is empty, because there is no transaction in the specified timespan
 #         fig = go.Figure()
 #     fig.update_traces(mode="lines+markers")
 #     fig.update_layout(xaxis_title="date",
-#                       yaxis_title="Value",
+#                       yaxis_title="value",
 #                       font_size=17,
 #                       legend=dict(x=0.01, y=0.99, title=""),
 #                       plot_bgcolor=theme_colors['background'],

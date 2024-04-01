@@ -3,7 +3,7 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
 
 ### Import app and dataframes containing data to display to call necessary functions and define callbacks
-from dashboard.dashboard_lib.app import app, portfolio_monthly, portfolio_value
+from dashboard.dashboard_lib.app import app, current_portfolio, portfolio_value
 from dashboard.dashboard_lib import apps_portfolio
 
 HTML_NO_CONTENT = html.Div([html.H2("Choose a timeframe")])
@@ -41,16 +41,16 @@ def switch_tabs(tab):
         return html_div
     elif tab == "tab-portfolio-overview":
         group_cols = ["region", "etf_type", "distribution", "replication"]
-        compute_cols = ["Investment", "Investment", "Investment", "Investment"]
+        compute_cols = ["amount", "amount", "amount", "amount"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused
         html_div = apps_portfolio.html_portfolio_overview(
-            portfolio_monthly, group_cols, compute_cols, agg_functions
+            current_portfolio, group_cols, compute_cols, agg_functions
         )
         return html_div
     elif tab == "tab-portfolio-value":
         group_cols = ["region", "etf_type", "distribution", "replication"]
-        compute_cols = ["Value", "Value", "Value", "Value"]
+        compute_cols = ["value", "value", "value", "value"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused
         # html_div = apps_portfolio.html_portfolio_overview(portfolio_value,
