@@ -65,8 +65,7 @@ def switch_tabs(tab):
         )
         return html_div
     elif tab == "tab-timeseries":
-        # html_div = apps_portfolio.html_portfolio_timeseries()
-        html_div = HTML_NO_CONTENT
+        html_div = apps_portfolio.html_portfolio_timeseries()
         return html_div
     elif tab == "tab-crypto":
         # html_div = apps_portfolio.html_crypto_overview()

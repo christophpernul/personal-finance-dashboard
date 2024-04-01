@@ -1,32 +1,6 @@
 import pandas as pd
-import yfinance as yf
 
 from utils.datacleaning import clean
-
-
-def fetch_prices(etfs: list) -> pd.DataFrame:
-    """Extracts historic price data for relevant etfs."""
-    prices = pd.DataFrame(columns=["isin", "Date", "Close"])
-    for isin in etfs:
-        try:
-            price_isin = yf.Ticker(isin).history(period="1d")
-            price_isin["isin"] = isin
-        except:
-            print(f"Cannot find price data for `{isin}` via yahoo finance!")
-            continue
-        prices = pd.concat(
-            [prices, price_isin[["isin", "Close"]].reset_index()],
-            ignore_index=True,
-        )
-    # Returned dataframe from yahoo contains columns Close, and Date after resetting index
-    prices.rename(
-        columns={
-            "Close": "price",
-            "Date": "date",
-        },
-        inplace=True,
-    )
-    return prices
 
 
 def preprocess_orders(orders: pd.DataFrame) -> pd.DataFrame:
@@ -324,16 +298,21 @@ def filter_portfolio_date(
         return portfolio_date_filtered
 
 
-# def filter_portfolio_stock(portfolio: pd.DataFrame, stock_name: str) -> pd.DataFrame:
-#     """
-#     Filters the dataframe, portfolio, to the given stock_name.
-#     :param portfolio: Dataframe holding transactions
-#     :param stock_name: Name of the stock, to which the dataframe should be filtered.
-#     :return: dataframe filtered on the specified stock name
-#     """
-#     assert "name" in portfolio.columns, 'Column "name" is missing in input dataframe!'
-#     return(portfolio[portfolio["name"] == stock_name])
-#
+def filter_portfolio_stock(
+    portfolio: pd.DataFrame, stock_name: str
+) -> pd.DataFrame:
+    """
+    Filters the dataframe, portfolio, to the given stock_name.
+    :param portfolio: Dataframe holding transactions
+    :param stock_name: Name of the stock, to which the dataframe should be filtered.
+    :return: dataframe filtered on the specified stock name
+    """
+    assert (
+        "name" in portfolio.columns
+    ), 'Column "name" is missing in input dataframe!'
+    return portfolio[portfolio["name"] == stock_name]
+
+
 # def prepare_orderAmounts_prices(orders: pd.DataFrame):
 #     """
 #     Extracts a dataframe of buy-prices for each stock at each date. Additionally prepare order-dataframe
@@ -357,7 +336,7 @@ def prepare_timeseries(orders: pd.DataFrame):
     :param orders: dataframe, containing Investmentamount, ordercost and price for each stock per transactiondate
     :return:
     """
-    necessary_columns = ["date", "name", "amount", "price", "cost"]
+    necessary_columns = ["date", "isin", "amount", "price", "cost"]
     assert set(orders.columns).intersection(set(necessary_columns)) == set(
         necessary_columns
     ), "Necessary columns missing in order data for timeseries preparation!"
@@ -369,13 +348,14 @@ def prepare_timeseries(orders: pd.DataFrame):
 
     ### Prepare master data of all stocks and dates in order history
     ### TODO: Refine all data preprocessing to just once define master data for all needed tasks
-    all_stocks = pd.DataFrame(orders["name"].drop_duplicates()).copy()
+    all_stocks = pd.DataFrame(orders["isin"].drop_duplicates()).copy()
     all_stocks["key"] = 0
     all_dates = pd.DataFrame(orders["date"].drop_duplicates()).copy()
     all_dates["key"] = 0
     all_combinations = pd.merge(all_dates, all_stocks, on="key").drop(
         "key", axis=1
     )
+    isin_name_map = orders[["isin", "name"]].drop_duplicates().copy()
 
     ### Prepare dataframe, that gets converted to a timeseries, it has entries of all stocks, that were
     ### bought in the past at each transaction-date (stock data for stocks, which were not bought at that date,
@@ -383,26 +363,26 @@ def prepare_timeseries(orders: pd.DataFrame):
     group_columns = ["amount", "cost", "shares"]
     df_init = (
         all_combinations.merge(
-            orders[["date", "name"] + group_columns],
+            orders[["date", "isin"] + group_columns],
             how="left",
-            left_on=["date", "name"],
-            right_on=["date", "name"],
+            left_on=["date", "isin"],
+            right_on=["date", "isin"],
         )
         .fillna(0)
         .copy()
     )
-    price_lookup = orders[["date", "name", "price"]].copy()
+    price_lookup = orders[["date", "isin", "price"]].copy()
 
     ### Compute cumsum() per stockgroup and rejoin date
     df_grouped = (
-        df_init.sort_values("date").groupby("name")[group_columns].cumsum()
+        df_init.sort_values("date").groupby("isin")[group_columns].cumsum()
     )
     df_grouped_all = df_init.merge(
         df_grouped,
         how="left",
         left_index=True,
         right_index=True,
-        suffixes=["_init", None],
+        suffixes=("_init", None),
     )
     df_grouped_all = df_grouped_all.drop(
         ["amount_init", "cost_init", "shares_init"], axis=1
@@ -412,16 +392,20 @@ def prepare_timeseries(orders: pd.DataFrame):
     df_grouped_all = df_grouped_all.merge(
         price_lookup,
         how="left",
-        left_on=["date", "name"],
-        right_on=["date", "name"],
-        suffixes=[None, "_y"],
+        left_on=["date", "isin"],
+        right_on=["date", "isin"],
+        suffixes=(None, "_y"),
     )
     df_grouped_all["value"] = (
         df_grouped_all["shares"] * df_grouped_all["price"]
     )
-    df_grouped_all = df_grouped_all.drop(
-        ["shares", "price"], axis=1
-    )  # .fillna(0)
+    df_grouped_all = df_grouped_all.drop(["shares", "price"], axis=1)
+    df_grouped_all = df_grouped_all.merge(
+        isin_name_map,
+        how="left",
+        left_on="isin",
+        right_on="isin",
+    ).drop(["isin"], axis=1)
 
     ### Finally sum over stock values at each date to arrive at timeseries format
     df_overall = (

@@ -55,8 +55,12 @@ orders_init = load_data(
     file_type="excel",
     sheet_name="Buys",
 )
-master_data_init = pd.read_csv(
-    filepath_or_buffer=filepath_source / "source_master_data.csv"
+master_data_init = load_data(filepath_source / "source_master_data.csv")
+current_etf_prices = load_data(
+    filepath_source / "source_etf_price_current.csv"
+)
+historic_etf_prices = load_data(
+    filepath_source / "source_etf_price_historic.csv"
 )
 
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
@@ -64,14 +68,14 @@ master_data_init = pd.read_csv(
 # ----------------- PREPROCESS --------------------
 orders = preprocess_orders(orders_init)
 master_data = preprocess_etf_masterdata(master_data_init)
-current_etf_prices = fetch_prices(etfs=list(orders["isin"].drop_duplicates()))
-
 
 # -------------- TRANSFORM ----------------------
 orders_enriched = enrich_orders(orders, master_data)
 current_portfolio = get_current_portfolio(orders_enriched)
 portfolio_value = get_portfolio_value(orders_enriched, current_etf_prices)
 
-df_timeseries = prepare_timeseries(orders)
+# TODO: UNderstand how prices were used before restructuring. From manual data or historic?
+df_timeseries = prepare_timeseries(orders_enriched)
 
+print("Done")
 # portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)

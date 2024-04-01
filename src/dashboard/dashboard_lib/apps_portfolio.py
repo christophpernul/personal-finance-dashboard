@@ -403,93 +403,87 @@ def html_portfolio_overview(
     return tab_overview
 
 
-# def html_portfolio_timeseries(title="Portfolio Price Trend"):
-#     """
-#     Shows a panel of dropdown elements on the left hand side, where the user is able to filter the data
-#     on a specific stock (also overall portfolio) and a timespan, which should be displayed.
-#     On the right hand side a timeseries chart of the performance of the selected stock is shown during
-#     the selected time span.
-#     :param title: Title of the tab
-#     :return: html element of the tab
-#     """
-#
-#     dropdown_timespan = dcc.Dropdown(options=[
-#                                         {"label": "1 Month", "value": 1},
-#                                         {"label": "3 Months", "value": 3},
-#                                         {"label": "6 Months", "value": 6},
-#                                         {"label": "1 Year", "value": 12},
-#                                         {"label": "5 Years", "value": 60},
-#                                         {"label": "Full", "value": -1}
-#                                     ],
-#                                     value=-1,
-#                                     id="dropdown-timespan",
-#
-#     )
-#     stock_default = "Overall Portfolio"
-#     distinct_stocks = list(df_orders["name"].drop_duplicates().sort_values())
-#     distinct_stocks.append(stock_default)
-#
-#     dropdown_stocks = dcc.Dropdown(options=[
-#         {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
-#     ],
-#         value=stock_default,
-#         id="dropdown-stocks"
-#     )
-#     dropdown_panel = html.Div([html.H2("Choose a timeframe"),
-#                                 dropdown_timespan,
-#                                  html.Br(),
-#                                 html.H2("Choose a stock"),
-#                                  dropdown_stocks,
-#                                  html.Br()
-#                                ]
-#                              )
-#     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
-#     graph_panel = html.Div(id="timeseries-chart")
-#
-#     html_content = html.Div(
-#                         dbc.Row([
-#                             dbc.Col(dropdown_panel,
-#                                     width=4,
-#                                     align='center'
-#                                     ),
-#                             dbc.Col(graph_panel,
-#                                     width=8,
-#                                     align='center'
-#                                     )
-#                                 ],
-#                             justify='around'
-#                         )
-#     )
-#
-#     heading = \
-#             dbc.Card(
-#                 dbc.CardBody(
-#                     html.H1(html.B(title))
-#                 ),
-#             )
-#
-#     html_page = html.Div([
-#         heading,
-#         html.Br(),
-#         html_content
-#     ])
-#
-#     return(html_page)
-#
-# def timeseries_chart(timespan, stock_name):
-#     """
-#     Function, that displays the content of the graph_panel, which gets filtered by the selected
-#     dropdown elements (timespan, stock_name). Shows a linechart of the selected stock for the specified
-#     timespan.
-#     :param timespan: How many months into the past the data should range.
-#     :param stock_name: Name of stock, that should be displayed
-#     :return: linechart HTML element
-#     """
-#     df_date_sorted = pl.filter_portfolio_date(df_timeseries, timespan)
-#     df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
-#
-#     return(dpl.plot_stock_linechart(df_sorted))
-#
+def html_portfolio_timeseries(title="Portfolio Price Trend"):
+    """
+    Shows a panel of dropdown elements on the left hand side, where the user is able to filter the data
+    on a specific stock (also overall portfolio) and a timespan, which should be displayed.
+    On the right hand side a timeseries chart of the performance of the selected stock is shown during
+    the selected time span.
+    :param title: Title of the tab
+    :return: html element of the tab
+    """
+
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "1 Month", "value": 1},
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "5 Years", "value": 60},
+            {"label": "Full", "value": -1},
+        ],
+        value=-1,
+        id="dropdown-timespan",
+    )
+    stock_default = "Overall Portfolio"
+    distinct_stocks = list(orders["name"].drop_duplicates().sort_values())
+    distinct_stocks.append(stock_default)
+
+    dropdown_stocks = dcc.Dropdown(
+        options=[
+            {"label": stock_name, "value": stock_name}
+            for stock_name in distinct_stocks
+        ],
+        value=stock_default,
+        id="dropdown-stocks",
+    )
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+            html.H2("Choose a stock"),
+            dropdown_stocks,
+            html.Br(),
+        ]
+    )
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
+    graph_panel = html.Div(id="timeseries-chart")
+
+    html_content = html.Div(
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
+        )
+    )
+
+    heading = dbc.Card(
+        dbc.CardBody(html.H1(html.B(title))),
+    )
+
+    html_page = html.Div([heading, html.Br(), html_content])
+
+    return html_page
+
+
+def timeseries_chart(timespan, stock_name):
+    """
+    Function, that displays the content of the graph_panel, which gets filtered by the selected
+    dropdown elements (timespan, stock_name). Shows a linechart of the selected stock for the specified
+    timespan.
+    :param timespan: How many months into the past the data should range.
+    :param stock_name: Name of stock, that should be displayed
+    :return: linechart HTML element
+    """
+    df_date_sorted = pl.filter_portfolio_date(df_timeseries, timespan)
+    df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
+
+    return dpl.plot_stock_linechart(df_sorted)
+
+
 def barchart_expenses(timespan, category):
     """
     Displays the content of the main-barchart panel, after filtering by the selected dropdown elements

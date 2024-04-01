@@ -76,36 +76,35 @@ def show_piechart(
     return content
 
 
-# def plot_stock_linechart(df_timeseries, theme_colors={'background': "#32383E", 'text': "#FFFFFF"}):
-#     """
-#     Uses a dataframe filtered on a specific stock and a given timespan to plot the timeseries of
-#     the stock-value and the total investment over time.
-#     :param df_timeseries: pd.DataFrame of price/investment values with Date filtered on a single stock/timespan
-#     :param theme_colors: dictionary, providing theme colors for the plot
-#     :return: html element consisting of a timeseries plot
-#     """
-#     try:
-#         fig = px.line(df_timeseries, x='date', y=['amount', 'value'])
-#     except:
-#         ### In case the dataframe is empty, because there is no transaction in the specified timespan
-#         fig = go.Figure()
-#     fig.update_traces(mode="lines+markers")
-#     fig.update_layout(xaxis_title="date",
-#                       yaxis_title="value",
-#                       font_size=17,
-#                       legend=dict(x=0.01, y=0.99, title=""),
-#                       plot_bgcolor=theme_colors['background'],
-#                       paper_bgcolor = theme_colors['background'],
-#                       font_color = theme_colors['text'],
-#                       title_font_size = 22,
-#                       height=720
-#                       )
-#     content = html.Div(
-#         dcc.Graph(
-#             figure=fig
-#         )
-#     )
-#     return(content)
+def plot_stock_linechart(
+    df_timeseries, theme_colors={"background": "#32383E", "text": "#FFFFFF"}
+):
+    """
+    Uses a dataframe filtered on a specific stock and a given timespan to plot the timeseries of
+    the stock-value and the total investment over time.
+    :param df_timeseries: pd.DataFrame of price/investment values with Date filtered on a single stock/timespan
+    :param theme_colors: dictionary, providing theme colors for the plot
+    :return: html element consisting of a timeseries plot
+    """
+    try:
+        fig = px.line(df_timeseries, x="date", y=["amount", "value"])
+    except:
+        ### In case the dataframe is empty, because there is no transaction in the specified timespan
+        fig = go.Figure()
+    fig.update_traces(mode="lines+markers")
+    fig.update_layout(
+        xaxis_title="date",
+        yaxis_title="value",
+        font_size=17,
+        legend=dict(x=0.01, y=0.99, title=""),
+        plot_bgcolor=theme_colors["background"],
+        paper_bgcolor=theme_colors["background"],
+        font_color=theme_colors["text"],
+        title_font_size=22,
+        height=720,
+    )
+    content = html.Div(dcc.Graph(figure=fig))
+    return content
 
 
 def plot_barchart(
