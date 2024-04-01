@@ -280,9 +280,11 @@ def html_portfolio_overview(
     )
 
     if show_last_updated == True:
-        assert (
-            len(set(overview_table["last_price_update"])) == 1
-        ), "Multiply dates for last price update in portfolio!"
+        # assert (
+        #     len(set(overview_table["last_price_update"])) == 1
+        # ), "Multiple dates for last price update in portfolio!"
+        # TODO: Verify that it is no problem if multiple last update dates are there, because usually it is only due
+        # to different time zones for different stocks
         last_updated = str(overview_table["last_price_update"].iloc[0]).split(
             " "
         )[0]

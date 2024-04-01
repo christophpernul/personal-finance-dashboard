@@ -13,11 +13,13 @@ from pathlib import Path
 from utils.file_io import load_data
 
 from src.datahub.processing_layer.lib_data_operations import (
+    fetch_prices,
     preprocess_etf_masterdata,
     preprocess_orders,
     enrich_orders,
     get_current_portfolio,
     prepare_timeseries,
+    get_portfolio_value,
 )
 
 # from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
@@ -45,7 +47,6 @@ df_incomes = df_incomes.set_index("date")
 
 # TODO: Drop this empty data for unused tabs!
 portfolio_crypto_value = pd.DataFrame()
-portfolio_value = pd.DataFrame()
 
 # ---------------- EXTRACT --------------------
 filepath_source = Path(DATAHUB_ROOT_FILEPATH) / "source" / "stocks"
@@ -63,13 +64,13 @@ master_data_init = pd.read_csv(
 # ----------------- PREPROCESS --------------------
 orders = preprocess_orders(orders_init)
 master_data = preprocess_etf_masterdata(master_data_init)
-# df_prices = pl.preprocess_prices(df_prices_init)
+current_etf_prices = fetch_prices(etfs=list(orders["isin"].drop_duplicates()))
 
 
 # -------------- TRANSFORM ----------------------
 orders_enriched = enrich_orders(orders, master_data)
 current_portfolio = get_current_portfolio(orders_enriched)
-# portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
+portfolio_value = get_portfolio_value(orders_enriched, current_etf_prices)
 
 df_timeseries = prepare_timeseries(orders)
 

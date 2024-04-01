@@ -53,16 +53,16 @@ def switch_tabs(tab):
         compute_cols = ["value", "value", "value", "value"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused
-        # html_div = apps_portfolio.html_portfolio_overview(portfolio_value,
-        #                                                   group_cols,
-        #                                                   compute_cols,
-        #                                                   agg_functions,
-        #                                                   cost_column_name="Value",
-        #                                                   title="Overall Portfolio",
-        #                                                   title_kpi_cost="Total Value",
-        #                                                   show_last_updated=True
-        #                                                   )
-        html_div = HTML_NO_CONTENT
+        html_div = apps_portfolio.html_portfolio_overview(
+            portfolio_value,
+            group_cols,
+            compute_cols,
+            agg_functions,
+            cost_column_name="value",
+            title="Overall Portfolio",
+            title_kpi_cost="Total Value",
+            show_last_updated=True,
+        )
         return html_div
     elif tab == "tab-timeseries":
         # html_div = apps_portfolio.html_portfolio_timeseries()

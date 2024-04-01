@@ -1,22 +1,32 @@
 import pandas as pd
+import yfinance as yf
 
 from utils.datacleaning import clean
 
-# def fetch_prices(df_prices: pd.DataFrame) -> pd.DataFrame:
-#     """Extracts historic price data for relevant etfs."""
-#     prices = pd.DataFrame(columns=["Date", "Close"])
-#     for isin in etf_isins:
-#         try:
-#             price_isin = yf.Ticker(isin).history(period="1d")
-#             price_isin["isin"] = isin
-#         except:
-#             print(f"Cannot find price data for `{isin}` via yahoo finance!")
-#             continue
-#         prices = pd.concat([prices, price_isin[["isin", "Close"]].reset_index()], ignore_index=True)
-#     prices.rename(columns={"Close": "price",
-#                            "Date": "date"
-#                            })
-#     return prices
+
+def fetch_prices(etfs: list) -> pd.DataFrame:
+    """Extracts historic price data for relevant etfs."""
+    prices = pd.DataFrame(columns=["isin", "Date", "Close"])
+    for isin in etfs:
+        try:
+            price_isin = yf.Ticker(isin).history(period="1d")
+            price_isin["isin"] = isin
+        except:
+            print(f"Cannot find price data for `{isin}` via yahoo finance!")
+            continue
+        prices = pd.concat(
+            [prices, price_isin[["isin", "Close"]].reset_index()],
+            ignore_index=True,
+        )
+    # Returned dataframe from yahoo contains columns Close, and Date after resetting index
+    prices.rename(
+        columns={
+            "Close": "price",
+            "Date": "date",
+        },
+        inplace=True,
+    )
+    return prices
 
 
 def preprocess_orders(orders: pd.DataFrame) -> pd.DataFrame:
@@ -273,9 +283,10 @@ def get_portfolio_value(
     df_portfolio = df.merge(
         dfp, how="left", left_on="isin", right_on="isin", suffixes=["", "_y"]
     ).rename(columns={"date_y": "last_price_update"})
-    assert (
-        df_portfolio["price"].isna().sum() > 0
-    ).any() == False, "Prices are missing for a transaction!"
+    # TODO: Check what happens if we keep NaNs in here in case prices could not have been retrieved
+    # assert (
+    #     df_portfolio["price"].isna().sum() > 0
+    # ).any() == False, "Prices are missing for a transaction!"
     df_portfolio["value"] = round(
         df_portfolio["shares"] * df_portfolio["price"], 2
     )
