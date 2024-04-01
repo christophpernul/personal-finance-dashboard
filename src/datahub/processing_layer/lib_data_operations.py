@@ -245,53 +245,57 @@ def compute_percentage_per_group(
 
 
 def get_portfolio_value(
-    df_trx: pd.DataFrame, df_prices: pd.DataFrame
+    orders_enriched: pd.DataFrame, prices: pd.DataFrame
 ) -> pd.DataFrame:
     """
-    Computes the current value of each stock given in the transaction list by using most recent price data.
-    :param df_trx: dataframe containing all transactions
-    :param df_prices: dataframe containing historic price data
+    Computes the current value of each stock given in the `orders_enriched` by using most recent price data.
+    :param orders_enriched: dataframe containing all portfolio orders
+    :param prices: dataframe containing current price data
     :return:
     """
-    if (df_trx.isna().sum() > 0).any():
+    if (orders_enriched.isna().sum() > 0).any():
         print(
             "Some entries contain NaN values! The statistics might be wrong!"
         )
-        print(df_trx.isna().sum())
+        print(orders_enriched.isna().sum())
     needed_columns_trx = set(["amount", "price", "isin"])
     needed_columns_prices = set(["price", "isin"])
     assert (
-        needed_columns_trx.intersection(set(df_trx.columns))
+        needed_columns_trx.intersection(set(orders_enriched.columns))
         == needed_columns_trx
     ), "One of the following columns are missing in df_trx: {}".format(
         needed_columns_trx
     )
     assert (
-        needed_columns_prices.intersection(set(df_prices.columns))
+        needed_columns_prices.intersection(set(prices.columns))
         == needed_columns_prices
     ), "One of the following columns are missing in df_prices: {}".format(
         needed_columns_prices
     )
-    df = df_trx.copy()
-    dfp = df_prices.copy()
+    orders_temp = orders_enriched.copy()
+    prices_temp = prices.copy()
 
     ### Compute amount of stocks bought
-    df["shares"] = df["amount"] / df["price"]
+    orders_temp["shares"] = orders_temp["amount"] / orders_temp["price"]
     ### Drop price of orderdata, which is the price at which a stock was bought --> here we use the current price
-    df = df.drop("price", axis=1)
+    orders_temp = orders_temp.drop("price", axis=1)
 
-    df_portfolio = df.merge(
-        dfp, how="left", left_on="isin", right_on="isin", suffixes=["", "_y"]
+    orders_priced = orders_temp.merge(
+        prices_temp,
+        how="left",
+        left_on="isin",
+        right_on="isin",
+        suffixes=["", "_y"],
     ).rename(columns={"date_y": "last_price_update"})
     # TODO: Check what happens if we keep NaNs in here in case prices could not have been retrieved
     # assert (
-    #     df_portfolio["price"].isna().sum() > 0
+    #     orders_priced["price"].isna().sum() > 0
     # ).any() == False, "Prices are missing for a transaction!"
-    df_portfolio["value"] = round(
-        df_portfolio["shares"] * df_portfolio["price"], 2
+    orders_priced["value"] = round(
+        orders_priced["shares"] * orders_priced["price"], 2
     )
 
-    return df_portfolio
+    return orders_priced
 
 
 def filter_portfolio_date(
