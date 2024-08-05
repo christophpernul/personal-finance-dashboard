@@ -123,7 +123,8 @@ def plot_barchart(
     assert title in [
         "Expenses",
         "Income",
-    ], 'Title of barchart has to be in ["Expenses", "Income"]!'
+        "Cashflow",
+    ], 'Title of barchart has to be in ["Expenses", "Income", "Cashflow"]!'
     assert (
         len(df.columns) == 1
     ), f"Only one column with name 'value' or category-name expected, got: {df.columns}"
@@ -149,8 +150,10 @@ def plot_barchart(
             )
         if title == "Expenses":
             fig.update_traces(marker_color="red")
-        else:
+        elif title == "Incomes":
             fig.update_traces(marker_color="green")
+        else:
+            fig.update_traces(marker_color="lightblue")
     except:
         ### In case the dataframe is empty, because there is no transaction in the specified timespan
         fig = go.Figure()

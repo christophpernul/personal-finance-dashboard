@@ -16,6 +16,7 @@ tab_nav_bar = dbc.Tabs(
     children=[
         dbc.Tab(label="Expenses", tab_id="tab-expenses"),
         dbc.Tab(label="Income", tab_id="tab-income"),
+        dbc.Tab(label="Cashflow", tab_id="tab-cashflow"),
         dbc.Tab(label="Monthly Plan", tab_id="tab-portfolio-overview"),
         dbc.Tab(label="Portfolio Statistics", tab_id="tab-portfolio-value"),
         dbc.Tab(label="Portfolio Timeseries", tab_id="tab-timeseries"),
@@ -38,6 +39,9 @@ def switch_tabs(tab):
         return html_div
     elif tab == "tab-income":
         html_div = apps_portfolio.html_income_tab()
+        return html_div
+    elif tab == "tab-cashflow":
+        html_div = apps_portfolio.html_cashflow_tab()
         return html_div
     elif tab == "tab-portfolio-overview":
         group_cols = ["region", "etf_type", "distribution", "replication"]

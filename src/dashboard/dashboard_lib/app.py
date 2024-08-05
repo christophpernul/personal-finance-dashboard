@@ -44,6 +44,17 @@ df_expenses = df_expenses.set_index("date")
 df_incomes["date"] = pd.to_datetime(df_incomes["date"], format="%Y-%m-%d")
 df_incomes = df_incomes.set_index("date")
 
+# Prepare cashflow data
+df_expenses_copy = df_expenses.copy()
+df_expenses_copy["total"] = df_expenses_copy.sum(axis=1)
+df_expenses_copy = df_expenses_copy[["total"]]
+
+df_incomes_copy = df_incomes.copy()
+df_incomes_copy["total"] = df_incomes_copy.sum(axis=1)
+df_incomes_copy = df_incomes_copy[["total"]]
+
+df_cashflow = df_incomes_copy + df_expenses_copy
+
 # TODO: Drop this empty data for unused tabs!
 portfolio_crypto_value = pd.DataFrame()
 

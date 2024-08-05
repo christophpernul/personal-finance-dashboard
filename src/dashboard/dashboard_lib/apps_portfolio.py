@@ -10,6 +10,7 @@ from dashboard.dashboard_lib.app import (
     df_timeseries,
     df_expenses,
     df_incomes,
+    df_cashflow,
     portfolio_crypto_value,
 )
 from datahub.processing_layer import lib_data_operations as pl
@@ -242,6 +243,93 @@ def html_income_tab(title="Income"):
     header_panel = dbc.Row([heading, kpi_panel], justify="around")
 
     html_page = html.Div([header_panel, html.Br(), html_content])
+
+    return html_page
+
+
+def html_cashflow_tab(title="Cashflow"):
+    """
+    Displays the tab with cashflow (income minues expenses) data by using a dropdown to specify timespan:
+    Top left: Title of the tab
+    Top right: KPI panel with average cashflow in given timeframe and for specified category
+    Left: Dropdown elements for timespan
+    Right: Barchart showing cashflow over time, updated by dropdowns including average expenses (same as KPI)
+    :param title: Title of the tab
+    :return: html element of the tab
+    """
+    #### Upper panel: 2 Dropdowns: timespan & category
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "2 Years", "value": 2 * 12},
+            {"label": "3 Years", "value": 3 * 12},
+            {"label": "4 Years", "value": 4 * 12},
+            {"label": "5 Years", "value": 5 * 12},
+            {"label": "Full", "value": -1},
+        ],
+        value=-1,
+        id="dropdown-timespan",
+    )
+
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+        ]
+    )
+
+    distinct_months = sorted(list(set([idx for idx in df_cashflow.index])))[
+        ::-1
+    ]
+    month_default = distinct_months[0]
+
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
+    graph_panel = html.Div(id="main-barchart-cashflow")
+    html_average = html.H2(id="kpi-average-cashflow")
+
+    upper_panel = html.Div(
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
+        )
+    )
+
+    heading = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.H1(html.B(title))),
+        ),
+        width=6,
+        align="center",
+    )
+    kpi_box = html.Div(
+        dbc.Row(
+            [dbc.Col(html.H2("Average Cashflow")), dbc.Col(html_average)],
+            justify="around",
+        ),
+    )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.Div([kpi_box])),
+        ),
+        width=6,
+        align="center",
+    )
+
+    header_panel = dbc.Row([heading, kpi_panel], justify="around")
+
+    html_page = html.Div(
+        [
+            header_panel,
+            html.Br(),
+            upper_panel,
+        ]
+    )
 
     return html_page
 
@@ -552,6 +640,22 @@ def barchart_income(timespan, category):
     return dpl.plot_barchart(df_sorted, "Income")
 
 
+def barchart_cashflow(timespan):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown element
+    (timespan). Shows a barchart of the selected cashflow for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :return: barchart HTML element
+    """
+    df_date_sorted = (
+        pl.filter_portfolio_date(df_cashflow.reset_index(), timespan)
+        .set_index("date")
+        .rename(columns={"total": "value"})
+    )
+
+    return dpl.plot_barchart(df_date_sorted, "Cashflow")
+
+
 # def html_crypto_overview(title="Cryptocurrencies",
 #                          title_kpi="Total Value"):
 #     """
@@ -671,6 +775,20 @@ def dropdown_expenses_chart(timespan: int, category: str):
 
 
 @app.callback(
+    Output("main-barchart-cashflow", "children"),
+    [Input("dropdown-timespan", "value")],
+)
+def dropdown_cashflow_chart(timespan: int):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_cashflow(timespan)
+    return html_div
+
+
+@app.callback(
     Output("kpi-average", "children"),
     [Input("dropdown-timespan", "value"), Input("dropdown-category", "value")],
 )
@@ -692,6 +810,24 @@ def dropdown_expenses_average(timespan: int, category: str):
         ), "Category not in columns of dataframe!"
         df_sorted = df_date_sorted[category]
     average = -df_sorted.mean()
+    html_div = html.B(f"{average:.2f} €")
+    return html_div
+
+
+@app.callback(
+    Output("kpi-average-cashflow", "children"),
+    [Input("dropdown-timespan", "value")],
+)
+def dropdown_cashflow_average(timespan: int):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(
+        df_cashflow.reset_index(), timespan
+    ).set_index("date")
+    average = df_date_sorted.mean().iloc[0]
     html_div = html.B(f"{average:.2f} €")
     return html_div
 
