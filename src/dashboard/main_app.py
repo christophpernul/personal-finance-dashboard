@@ -45,7 +45,7 @@ def switch_tabs(tab):
         return html_div
     elif tab == "tab-portfolio-overview":
         group_cols = ["region", "etf_type", "distribution", "replication"]
-        compute_cols = ["amount", "amount", "amount", "amount"]
+        compute_cols = ["value", "value", "value", "value"]
         agg_functions = ["sum", "sum", "sum", "sum"]
         # This function is called explicitly with data, because it is reused
         html_div = apps_portfolio.html_portfolio_overview(

@@ -178,6 +178,7 @@ def get_current_portfolio(orders: pd.DataFrame) -> pd.DataFrame:
         portfolio[portfolio["index"] == last_execution_index]
         .reset_index(drop=True)
         .drop("index", axis=1)
+        .rename(columns={"amount": "value"})
     )
     return portfolio
 

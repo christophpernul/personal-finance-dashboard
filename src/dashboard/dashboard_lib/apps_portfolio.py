@@ -339,7 +339,7 @@ def html_portfolio_overview(
     group_columns: list,
     compute_columns: list,
     aggregation_columns: list,
-    cost_column_name="amount",
+    cost_column_name="value",
     share_column_name="shares",
     title="Overview monthly Savings Plan",
     title_kpi_cost="Monthly Investment",
@@ -382,7 +382,10 @@ def html_portfolio_overview(
     all_group_columns = ["name", "isin", "ter", "depot"] + group_columns
     overview_table = (
         overview_table.groupby(all_group_columns)[
-            [cost_column_name, share_column_name]
+            [
+                cost_column_name,
+                # share_column_name,
+            ]
         ]
         .sum()
         .reset_index()
@@ -390,12 +393,19 @@ def html_portfolio_overview(
     )
 
     overview_table = overview_table[
-        all_group_columns + [cost_column_name, share_column_name]
+        all_group_columns
+        + [
+            cost_column_name,
+            # share_column_name,
+        ]
     ]
+    overview_table[cost_column_name] = round(
+        overview_table[cost_column_name], 2
+    )
 
     # Calculate costs
     overview_table["cost_per_year"] = (
-        12 * overview_table["value"] * overview_table["ter"] / 100
+        12 * overview_table[cost_column_name] * overview_table["ter"] / 100
     )
     total_costs = round(overview_table[cost_column_name].sum(), 2)
     average_TER = round(
