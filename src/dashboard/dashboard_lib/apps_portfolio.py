@@ -340,6 +340,7 @@ def html_portfolio_overview(
     compute_columns: list,
     aggregation_columns: list,
     cost_column_name="amount",
+    share_column_name="shares",
     title="Overview monthly Savings Plan",
     title_kpi_cost="Monthly Investment",
     show_last_updated=False,
@@ -378,22 +379,29 @@ def html_portfolio_overview(
         )[0]
         title_kpi_cost = title_kpi_cost + " (" + last_updated + ")"
 
-    total_costs = round(overview_table[cost_column_name].sum(), 2)
-    average_TER = round(
-        (overview_table["cost_per_year"] / (12 * total_costs)).sum() * 100, 3
-    )
-
-    overview_table = overview_table.drop(["cost_per_year"], axis=1)
-
     all_group_columns = ["name", "isin", "ter", "depot"] + group_columns
     overview_table = (
-        overview_table.groupby(all_group_columns)[cost_column_name]
+        overview_table.groupby(all_group_columns)[
+            [cost_column_name, share_column_name]
+        ]
         .sum()
         .reset_index()
         .sort_values(cost_column_name, ascending=False)
     )
 
-    overview_table = overview_table[all_group_columns + [cost_column_name]]
+    overview_table = overview_table[
+        all_group_columns + [cost_column_name, share_column_name]
+    ]
+
+    # Calculate costs
+    overview_table["cost_per_year"] = (
+        12 * overview_table["value"] * overview_table["ter"] / 100
+    )
+    total_costs = round(overview_table[cost_column_name].sum(), 2)
+    average_TER = round(
+        (overview_table["cost_per_year"] / (12 * total_costs)).sum() * 100, 3
+    )
+    overview_table = overview_table.drop(["cost_per_year"], axis=1)
 
     ################################ Define Dash App configuration ########################################################
 

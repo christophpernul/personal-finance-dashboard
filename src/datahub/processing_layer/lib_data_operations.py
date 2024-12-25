@@ -3,8 +3,11 @@ import pandas as pd
 from utils.datacleaning import clean
 
 
-def preprocess_orders(orders: pd.DataFrame) -> pd.DataFrame:
-    """Select necessary columns, clean data and provide positive amount and costs."""
+def preprocess_orders(orders: pd.DataFrame, type="buys") -> pd.DataFrame:
+    """
+    Select necessary columns, clean data and provide positive amount and costs.
+    If the ordertype is `buys` the amount gets negated to indicate buying.
+    """
     orders_out = orders.copy()
 
     # Keep valid orders
@@ -41,13 +44,28 @@ def preprocess_orders(orders: pd.DataFrame) -> pd.DataFrame:
         ],
     )
     orders_out["date"] = pd.to_datetime(orders_out["date"], format="%d.%m.%Y")
-    orders_out["index"] = orders_out["index"].astype(int)
+    # For sells the shares are negative, for buys they get positive as amounts are negative
+    orders_out["shares"] = -orders_out["amount"] / orders_out["price"]
 
     # Preprocess
-    assert (
-        orders_out[orders_out["amount"] > 0.0].count() != 0
-    ).any() == False, "There should be no positive values in amount column!"
-    orders_out["amount"] = -orders_out["amount"]
+    if type == "buys":
+        assert (
+            orders_out[orders_out["amount"] > 0.0].count() != 0
+        ).any() == False, (
+            "There should be no positive values in amount column!"
+        )
+        orders_out["index"] = orders_out["index"].astype(int)
+    elif type == "sells":
+        assert (
+            orders_out[orders_out["amount"] < 0.0].count() != 0
+        ).any() == False, (
+            "There should be no positive values in amount column!"
+        )
+        # Shares are sold but amount is retrieved
+    else:
+        raise ValueError(
+            f"Only types `buys` and `sells` allowed, but got {type} instead!"
+        )
     orders_out["cost"] = -orders_out["cost"]
 
     return orders_out
@@ -142,9 +160,6 @@ def enrich_orders(orders, master_data):
         left_on="isin",
         right_on="isin",
     )
-    orders_temp["cost_per_year"] = (
-        12 * orders_temp["amount"] * orders_temp["ter"] / 100
-    )
 
     assert (
         orders_temp[orders_temp[join_columns_master].isna()][["isin", "name"]]
@@ -232,7 +247,7 @@ def get_portfolio_value(
             "Some entries contain NaN values! The statistics might be wrong!"
         )
         print(orders_enriched.isna().sum())
-    needed_columns_trx = set(["amount", "price", "isin"])
+    needed_columns_trx = set(["shares", "isin"])
     needed_columns_prices = set(["price", "isin"])
     assert (
         needed_columns_trx.intersection(set(orders_enriched.columns))
@@ -249,8 +264,6 @@ def get_portfolio_value(
     orders_temp = orders_enriched.copy()
     prices_temp = prices.copy()
 
-    ### Compute amount of stocks bought
-    orders_temp["shares"] = orders_temp["amount"] / orders_temp["price"]
     ### Drop price of orderdata, which is the price at which a stock was bought --> here we use the current price
     orders_temp = orders_temp.drop("price", axis=1)
 

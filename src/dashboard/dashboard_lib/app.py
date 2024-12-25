@@ -65,6 +65,11 @@ orders_init = load_data(
     file_type="excel",
     sheet_name="Buys",
 )
+sells_init = load_data(
+    filepath_source / "source_stocks_portfolio_trades.ods",
+    file_type="excel",
+    sheet_name="Sells",
+)
 master_data_init = load_data(filepath_source / "source_master_data.csv")
 current_etf_prices = load_data(
     filepath_source / "source_etf_price_current.csv"
@@ -76,11 +81,13 @@ historic_etf_prices = load_data(
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
 
 # ----------------- PREPROCESS --------------------
-orders = preprocess_orders(orders_init)
+orders = preprocess_orders(orders_init, type="buys")
+sells = preprocess_orders(sells_init, type="sells")
 master_data = preprocess_etf_masterdata(master_data_init)
 
 # -------------- TRANSFORM ----------------------
-orders_enriched = enrich_orders(orders, master_data)
+all_orders = pd.concat([orders, sells], ignore_index=True)
+orders_enriched = enrich_orders(all_orders, master_data)
 current_portfolio = get_current_portfolio(orders_enriched)
 portfolio_value = get_portfolio_value(orders_enriched, current_etf_prices)
 
