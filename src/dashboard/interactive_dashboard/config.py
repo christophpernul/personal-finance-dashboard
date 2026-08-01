@@ -15,6 +15,15 @@ DATA_DIR = Path(os.environ.get("FINANCE_DATA_DIR", DEFAULT_DATA_DIR))
 EXPENSES_FILE = "target_cashflow__expenses.csv"
 INCOMES_FILE = "target_cashflow__incomes.csv"
 
+# Portfolio positions live in the transform layer (one row per position).
+DEFAULT_TRANSFORM_DIR = Path(
+    r"D:\SynologyDrive\Finance\data\datahub\transform"
+)
+TRANSFORM_DIR = Path(
+    os.environ.get("FINANCE_TRANSFORM_DIR", DEFAULT_TRANSFORM_DIR)
+)
+PORTFOLIO_FILE = "transform_portfolio__value.csv"
+
 CSV_SEP = ";"
 CSV_DECIMAL = ","
 DATE_COLUMN = "date"

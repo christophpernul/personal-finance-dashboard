@@ -12,10 +12,21 @@ Run with::
 from __future__ import annotations
 
 import pandas as pd
-from dash import Dash, Input, Output, State, callback_context, dcc, html
+from dash import (
+    Dash,
+    Input,
+    Output,
+    State,
+    callback_context,
+    dash_table,
+    dcc,
+    html,
+)
+from dash.dash_table.Format import Format, Group, Scheme, Symbol
 
 from . import config, figures
 from .data import FinanceData, load_finance_data
+from .portfolio import PortfolioData, load_portfolio_data
 
 C = config.COLORS
 
@@ -24,11 +35,31 @@ DATA: FinanceData = load_finance_data()
 MONTHS: list[pd.Timestamp] = DATA.months
 N_MONTHS = len(MONTHS)
 
+PORTFOLIO: PortfolioData = load_portfolio_data()
+
 # Tab registry — add a dict here to introduce a new tab later.
+# ``layout`` selects how the tab is rendered: "series" = monthly bars + range
+# slider; "portfolio" = positions table + aggregate KPI cards.
 TABS = [
-    {"kind": "expenses", "label": "Expenses", "has_categories": True},
-    {"kind": "income", "label": "Income", "has_categories": True},
-    {"kind": "cashflow", "label": "Cashflow", "has_categories": False},
+    {
+        "kind": "expenses",
+        "label": "Expenses",
+        "layout": "series",
+        "has_categories": True,
+    },
+    {
+        "kind": "income",
+        "label": "Income",
+        "layout": "series",
+        "has_categories": True,
+    },
+    {
+        "kind": "cashflow",
+        "label": "Cashflow",
+        "layout": "series",
+        "has_categories": False,
+    },
+    {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
 ]
 KINDS = [t["kind"] for t in TABS]
 
@@ -121,7 +152,34 @@ def _preset_button(kind: str, preset: str, text: str) -> html.Button:
     )
 
 
+def _tab_shell(label: str, kind: str, body: list) -> dcc.Tab:
+    return dcc.Tab(
+        label=label,
+        value=kind,
+        children=html.Div(body, style={"padding": "6px"}),
+        style={
+            "backgroundColor": C["background"],
+            "color": C["text_muted"],
+            "borderTop": f"1px solid {C['grid']}",
+            "borderRight": f"1px solid {C['grid']}",
+            "borderBottom": f"1px solid {C['grid']}",
+            "borderLeft": f"1px solid {C['grid']}",
+        },
+        selected_style={
+            "backgroundColor": C["panel"],
+            "color": C["text"],
+            "borderTop": f"3px solid {C['average']}",
+            "borderRight": f"1px solid {C['grid']}",
+            "borderBottom": f"1px solid {C['grid']}",
+            "borderLeft": f"1px solid {C['grid']}",
+        },
+    )
+
+
 def build_tab(tab: dict) -> dcc.Tab:
+    if tab["layout"] == "portfolio":
+        return build_portfolio_tab(tab)
+
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
 
@@ -209,22 +267,190 @@ def build_tab(tab: dict) -> dcc.Tab:
         )
         body.append(detail_row)
 
-    return dcc.Tab(
-        label=label,
-        value=kind,
-        children=html.Div(body, style={"padding": "6px"}),
-        style={
-            "backgroundColor": C["background"],
-            "color": C["text_muted"],
-            "border": f"1px solid {C['grid']}",
-        },
-        selected_style={
-            "backgroundColor": C["panel"],
-            "color": C["text"],
-            "border": f"1px solid {C['grid']}",
-            "borderTop": f"3px solid {C['average']}",
-        },
+    return _tab_shell(label, kind, body)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio tab (static: positions table + aggregate KPI cards)
+# ---------------------------------------------------------------------------
+_MONEY = Format(
+    group=Group.yes,
+    precision=2,
+    scheme=Scheme.fixed,
+    symbol=Symbol.yes,
+    symbol_suffix=" €",
+)
+_PERCENT = Format(
+    precision=1,
+    scheme=Scheme.fixed,
+    symbol=Symbol.yes,
+    symbol_suffix=" %",
+)
+_SHARES = Format(group=Group.yes, precision=2, scheme=Scheme.fixed)
+
+_PORTFOLIO_TABLE_COLUMNS = [
+    {"name": "Group", "id": "group"},
+    {"name": "Name", "id": "name"},
+    {"name": "Symbol", "id": "symbol"},
+    {"name": "ISIN", "id": "isin"},
+    {"name": "Ccy", "id": "currency"},
+    {"name": "Shares", "id": "shares", "type": "numeric", "format": _SHARES},
+    {"name": "Price", "id": "price", "type": "numeric", "format": _MONEY},
+    {
+        "name": "Investment",
+        "id": "investment",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {"name": "Value", "id": "value", "type": "numeric", "format": _MONEY},
+    {"name": "Gain", "id": "gain", "type": "numeric", "format": _MONEY},
+    {
+        "name": "Gain %",
+        "id": "gain_pct",
+        "type": "numeric",
+        "format": _PERCENT,
+    },
+    {"name": "As of", "id": "as_of"},
+]
+
+
+def _portfolio_group_card(
+    title: str, row: pd.Series, as_of: str | None
+) -> html.Div:
+    gain = float(row["gain"])
+    gain_color = C["positive"] if gain >= 0 else C["negative"]
+    subtitle = f"{int(row['n_positions'])} positions"
+    if as_of:
+        subtitle += f"  ·  as of {as_of}"
+    return _card(
+        [
+            html.Div(
+                title, style={"color": C["text_muted"], "fontSize": "15px"}
+            ),
+            html.Div(
+                subtitle, style={"color": C["text_muted"], "fontSize": "12px"}
+            ),
+            html.Div(
+                f"{row['value']:,.0f} €",
+                style={
+                    "color": C["text"],
+                    "fontSize": "30px",
+                    "fontWeight": "600",
+                    "marginTop": "6px",
+                },
+            ),
+            html.Div(
+                [
+                    html.Span(
+                        "Invested ",
+                        style={"color": C["text_muted"], "fontSize": "13px"},
+                    ),
+                    html.Span(
+                        f"{row['investment']:,.0f} €",
+                        style={"color": C["text"], "fontSize": "13px"},
+                    ),
+                ],
+                style={"marginTop": "4px"},
+            ),
+            html.Div(
+                f"{gain:+,.0f} €  ({row['gain_pct']:+.1f} %)",
+                style={
+                    "color": gain_color,
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                    "marginTop": "2px",
+                },
+            ),
+        ],
+        flex="1",
+        minWidth="230px",
     )
+
+
+def build_portfolio_tab(tab: dict) -> dcc.Tab:
+    agg = PORTFOLIO.group_aggregates()
+    as_of = PORTFOLIO.as_of_by_group()
+
+    cards = [_portfolio_group_card("Total Portfolio", agg.loc["All"], None)]
+    for grp in ("ETFs", "Stocks"):
+        if grp in agg.index:
+            cards.append(
+                _portfolio_group_card(grp, agg.loc[grp], as_of.get(grp))
+            )
+    kpi_row = html.Div(cards, style={"display": "flex", "flexWrap": "wrap"})
+
+    records = PORTFOLIO.positions.copy()
+    records["as_of"] = pd.to_datetime(records["as_of"]).dt.strftime("%Y-%m-%d")
+
+    table = _card(
+        dash_table.DataTable(
+            id="portfolio-table",
+            columns=_PORTFOLIO_TABLE_COLUMNS,
+            data=records.to_dict("records"),
+            sort_action="native",
+            filter_action="native",
+            page_size=40,
+            style_as_list_view=True,
+            style_table={"overflowX": "auto"},
+            style_header={
+                "backgroundColor": C["background"],
+                "color": C["text"],
+                "fontWeight": "600",
+                "border": "none",
+                "borderBottom": f"2px solid {C['grid']}",
+            },
+            style_cell={
+                "backgroundColor": C["panel"],
+                "color": C["text"],
+                "border": "none",
+                "borderBottom": f"1px solid {C['grid']}",
+                "padding": "8px 10px",
+                "fontFamily": "Segoe UI, Arial, sans-serif",
+                "fontSize": "13px",
+                "textAlign": "right",
+                "maxWidth": "320px",
+                "overflow": "hidden",
+                "textOverflow": "ellipsis",
+            },
+            style_cell_conditional=[
+                {"if": {"column_id": c}, "textAlign": "left"}
+                for c in (
+                    "group",
+                    "name",
+                    "symbol",
+                    "isin",
+                    "currency",
+                    "as_of",
+                )
+            ],
+            style_data_conditional=[
+                {
+                    "if": {"filter_query": "{gain} < 0", "column_id": "gain"},
+                    "color": C["negative"],
+                },
+                {
+                    "if": {"filter_query": "{gain} >= 0", "column_id": "gain"},
+                    "color": C["positive"],
+                },
+                {
+                    "if": {
+                        "filter_query": "{gain_pct} < 0",
+                        "column_id": "gain_pct",
+                    },
+                    "color": C["negative"],
+                },
+                {
+                    "if": {
+                        "filter_query": "{gain_pct} >= 0",
+                        "column_id": "gain_pct",
+                    },
+                    "color": C["positive"],
+                },
+            ],
+        ),
+    )
+
+    return _tab_shell(tab["label"], tab["kind"], [kpi_row, table])
 
 
 def build_layout() -> html.Div:
@@ -262,6 +488,8 @@ app.layout = build_layout()
 
 def _register_callbacks() -> None:
     for tab in TABS:
+        if tab["layout"] != "series":
+            continue  # portfolio tab is static — no callbacks
         kind = tab["kind"]
         has_cats = tab["has_categories"]
 
