@@ -7,19 +7,6 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
-from pathlib import Path
-
-# TODO: All datahub functionalities need to be dropped!
-from utils.file_io import load_data
-
-from src.datahub.processing_layer.lib_data_operations import (
-    preprocess_etf_masterdata,
-    preprocess_orders,
-    enrich_orders,
-    get_current_portfolio,
-    prepare_timeseries,
-    get_portfolio_value,
-)
 
 # from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
 app = dash.Dash(
@@ -34,10 +21,14 @@ server = app.server
 # TODO: Load only necessary data and drop everything else! Use load_data() function instead!
 DATAHUB_ROOT_FILEPATH = "D:/SynologyDrive/Finance/data/datahub/"
 df_expenses = pd.read_csv(
-    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/cashflow/B00_expenses.csv"
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/target_cashflow__expenses.csv",
+    sep=";",
+    decimal=",",
 )
 df_incomes = pd.read_csv(
-    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/cashflow/B00_incomes.csv"
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/target_cashflow__incomes.csv",
+    sep=";",
+    decimal=",",
 )
 df_expenses["date"] = pd.to_datetime(df_expenses["date"], format="%Y-%m-%d")
 df_expenses = df_expenses.set_index("date")
@@ -58,41 +49,25 @@ df_cashflow = df_incomes_copy + df_expenses_copy
 # TODO: Drop this empty data for unused tabs!
 portfolio_crypto_value = pd.DataFrame()
 
-# ---------------- EXTRACT --------------------
-filepath_source = Path(DATAHUB_ROOT_FILEPATH) / "source" / "stocks"
-orders_init = load_data(
-    filepath_source / "source_stocks_portfolio_trades.ods",
-    file_type="excel",
-    sheet_name="Buys",
+# ---------------- LOAD PRECALCULATED PORTFOLIO DATA --------------------
+# Reuse the tables the datahub already computes instead of preprocessing here.
+portfolio_value = pd.read_csv(
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}transform/transform_etf__portfolio_value.csv",
+    sep=";",
+    decimal=",",
 )
-sells_init = load_data(
-    filepath_source / "source_stocks_portfolio_trades.ods",
-    file_type="excel",
-    sheet_name="Sells",
-)
-master_data_init = load_data(filepath_source / "source_master_data.csv")
-current_etf_prices = load_data(
-    filepath_source / "source_etf_price_current.csv"
-)
-historic_etf_prices = load_data(
-    filepath_source / "source_etf_price_historic.csv"
-)
+
+# TODO: The current portfolio (current holdings per position) is not yet
+#       produced by the datahub. Calculate it there first, then load it from
+#       disk here instead of this empty placeholder.
+current_portfolio = pd.DataFrame()
+
+# TODO: The portfolio price timeseries is not yet produced by the datahub.
+#       Calculate it there, load it from disk, and re-enable the
+#       "Portfolio Timeseries" tab (main_app.py) together with the trade data
+#       (`orders`) that fed its stock selector.
+# orders = <preprocessed trades>
+# df_timeseries = <prepare_timeseries(orders_enriched)>
 
 # crypto_prices = get_current_cryptocurrency_price(currency="EUR")
-
-# ----------------- PREPROCESS --------------------
-orders = preprocess_orders(orders_init, type="buys")
-sells = preprocess_orders(sells_init, type="sells")
-master_data = preprocess_etf_masterdata(master_data_init)
-
-# -------------- TRANSFORM ----------------------
-all_orders = pd.concat([orders, sells], ignore_index=True)
-orders_enriched = enrich_orders(all_orders, master_data)
-current_portfolio = get_current_portfolio(orders_enriched)
-portfolio_value = get_portfolio_value(orders_enriched, current_etf_prices)
-
-# TODO: UNderstand how prices were used before restructuring. From manual data or historic?
-df_timeseries = prepare_timeseries(orders_enriched)
-
-print("Done")
 # portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)

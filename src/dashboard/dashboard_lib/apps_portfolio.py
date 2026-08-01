@@ -6,8 +6,6 @@ from dash.dependencies import Input, Output
 ### Import app (to define callbacks) and necessary preprocessed data
 from dashboard.dashboard_lib.app import (
     app,
-    orders,
-    df_timeseries,
     df_expenses,
     df_incomes,
     df_cashflow,
@@ -509,6 +507,10 @@ def html_portfolio_overview(
     return tab_overview
 
 
+# TODO: The Portfolio Timeseries feature is disabled until the datahub produces
+#       the price timeseries and the trade data (`orders`) it relies on. Once
+#       those are loaded in app.py, re-import them here, re-enable the tab in
+#       main_app.py, and restore the commented-out callback below.
 def html_portfolio_timeseries(title="Portfolio Price Trend"):
     """
     Shows a panel of dropdown elements on the left hand side, where the user is able to filter the data

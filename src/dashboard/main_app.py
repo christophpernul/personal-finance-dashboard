@@ -19,7 +19,9 @@ tab_nav_bar = dbc.Tabs(
         dbc.Tab(label="Cashflow", tab_id="tab-cashflow"),
         dbc.Tab(label="Monthly Plan", tab_id="tab-portfolio-overview"),
         dbc.Tab(label="Portfolio Statistics", tab_id="tab-portfolio-value"),
-        dbc.Tab(label="Portfolio Timeseries", tab_id="tab-timeseries"),
+        # TODO: Re-enable once the datahub produces the portfolio price timeseries
+        #       (see app.py / apps_portfolio.html_portfolio_timeseries).
+        # dbc.Tab(label="Portfolio Timeseries", tab_id="tab-timeseries"),
         dbc.Tab(label="Cryptocurrencies", tab_id="tab-crypto"),
         dbc.Tab(label="Savings", tab_id="tab-savings"),
     ],
@@ -68,9 +70,10 @@ def switch_tabs(tab):
             show_last_updated=True,
         )
         return html_div
-    elif tab == "tab-timeseries":
-        html_div = apps_portfolio.html_portfolio_timeseries()
-        return html_div
+    # TODO: Re-enable once the datahub produces the portfolio price timeseries.
+    # elif tab == "tab-timeseries":
+    #     html_div = apps_portfolio.html_portfolio_timeseries()
+    #     return html_div
     elif tab == "tab-crypto":
         # html_div = apps_portfolio.html_crypto_overview()
         html_div = HTML_NO_CONTENT
