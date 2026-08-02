@@ -29,6 +29,17 @@ def _base_layout(fig: go.Figure, *, height: int | None = None) -> go.Figure:
     return fig
 
 
+def _make_room_for_labels(fig: go.Figure, values) -> None:
+    """Extend the x-axis of a horizontal bar chart so outside end-labels fit."""
+    if len(values) == 0:
+        return
+    top = float(max(values))
+    if top <= 0:
+        return
+    fig.update_xaxes(range=[0, top * 1.18])
+    fig.update_layout(margin=dict(l=60, r=40, t=40, b=40))
+
+
 def _empty(message: str) -> go.Figure:
     fig = go.Figure()
     fig.add_annotation(
@@ -111,10 +122,15 @@ def category_breakdown_figure(
         x=breakdown.values,
         y=breakdown.index,
         orientation="h",
-        marker_color=config.CATEGORY_PALETTE[: len(breakdown)][::-1],
+        marker_color=[config.category_color(c) for c in breakdown.index],
+        text=[f"{v:,.0f} €" for v in breakdown.values],
+        textposition="outside",
+        textfont=dict(color=C["text"]),
+        cliponaxis=False,
         hovertemplate="%{y}<br>%{x:,.0f} €<extra></extra>",
     )
     _base_layout(fig, height=420)
+    _make_room_for_labels(fig, breakdown.values)
     fig.update_layout(
         title=dict(text=f"{month:%B %Y} by category", font=dict(size=15)),
         showlegend=False,
@@ -135,10 +151,15 @@ def category_average_figure(data: FinanceData, kind: str) -> go.Figure:
         x=avg.values,
         y=avg.index,
         orientation="h",
-        marker_color=config.CATEGORY_PALETTE[: len(avg)][::-1],
+        marker_color=[config.category_color(c) for c in avg.index],
+        text=[f"{v:,.0f} €" for v in avg.values],
+        textposition="outside",
+        textfont=dict(color=C["text"]),
+        cliponaxis=False,
         hovertemplate="%{y}<br>avg %{x:,.0f} €/month<extra></extra>",
     )
     _base_layout(fig, height=420)
+    _make_room_for_labels(fig, avg.values)
     fig.update_layout(
         title=dict(
             text="Average per category (selected period)", font=dict(size=15)

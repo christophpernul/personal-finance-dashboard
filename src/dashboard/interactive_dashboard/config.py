@@ -43,24 +43,109 @@ COLORS = {
     "selected": "#f1c40f",  # highlighted / clicked bar
 }
 
-# Consistent color per category is nice-to-have; Plotly's qualitative palette is fine.
-CATEGORY_PALETTE = [
-    "#e23b3b",
-    "#e67e22",
-    "#f1c40f",
-    "#2ecc71",
-    "#1abc9c",
-    "#3498db",
-    "#9b59b6",
-    "#e84393",
-    "#fd79a8",
-    "#00cec9",
-    "#6c5ce7",
-    "#0984e3",
-    "#a29bfe",
-    "#fab1a0",
-    "#55efc4",
-    "#ffeaa7",
-    "#b2bec3",
-    "#636e72",
-]
+# --- Category coloring -------------------------------------------------------
+# Categories are grouped into semantic families; every category in a family gets
+# a distinct *shade of the same hue*, so related categories (e.g. all
+# food & drink) read as one color group while different groups stay visually
+# separate. The mapping is fixed, so a category keeps the same color across every
+# chart.
+import colorsys
+
+# group name -> (base hue color, [member categories in shade order])
+CATEGORY_GROUPS: dict[str, tuple[str, list[str]]] = {
+    "Food & Drink": (
+        "#e23b3b",
+        [
+            "Restaurants",
+            "Fast Food & Sweets",
+            "Lebensmittel",
+            "Groceries",
+            "Alcohol",
+            "non Alcoholics",
+        ],
+    ),
+    "Housing": (
+        "#3498db",
+        [
+            "Home",
+            "Wohnungseinrichtung",
+            "Kaution",
+            "Devices",
+        ],
+    ),
+    "Mobility": ("#e67e22", ["Transportation", "Vacation"]),
+    "Leisure & Health": (
+        "#c99700",
+        [  # dark yellow instead of green
+            "Sports",
+            "Events & Leisure",
+            "Clothes & Health",
+        ],
+    ),
+    "Digital": ("#2ecc71", ["Internet", "Apps"]),  # green
+    "Giving": ("#e84393", ["Presents", "Present", "Donations"]),
+    "Invest & Fees": (
+        "#1abc9c",
+        [
+            "Stocks",
+            "Investment",
+            "Investment Profit",
+            "order_costs",
+        ],
+    ),
+    "Taxes & Fees": ("#8d6e63", ["Steuern & Gebühren", "Taxes & Fees"]),
+    "Income": ("#27ae60", ["Salary", "Compensation"]),
+    "Other": ("#7f8c8d", ["Other"]),
+}
+
+# Fallback hues for any category not listed above (cycled, one hue per new cat).
+_FALLBACK_HUES = ["#0984e3", "#6c5ce7", "#00b894", "#fdcb6e", "#d63031"]
+
+
+def _hex_to_rgb(h: str) -> tuple[float, float, float]:
+    h = h.lstrip("#")
+    return tuple(int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _rgb_to_hex(rgb: tuple[float, float, float]) -> str:
+    return "#" + "".join(
+        f"{max(0, min(255, round(c * 255))):02x}" for c in rgb
+    )
+
+
+def _shades(base_hex: str, n: int) -> list[str]:
+    """Return ``n`` shades of ``base_hex`` from darker to lighter (same hue)."""
+    r, g, b = _hex_to_rgb(base_hex)
+    hue, _, sat = colorsys.rgb_to_hls(r, g, b)
+    # Keep deliberately grey bases grey; only lift saturation for real hues.
+    eff_sat = sat if sat < 0.20 else max(sat, 0.45)
+    if n <= 1:
+        lightnesses = [0.52]
+    else:
+        lightnesses = [0.40 + 0.30 * i / (n - 1) for i in range(n)]
+    return [
+        _rgb_to_hex(colorsys.hls_to_rgb(hue, li, eff_sat))
+        for li in lightnesses
+    ]
+
+
+def _build_category_colors() -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for base_hex, members in CATEGORY_GROUPS.values():
+        for cat, color in zip(members, _shades(base_hex, len(members))):
+            mapping[cat] = color
+    return mapping
+
+
+CATEGORY_COLORS: dict[str, str] = _build_category_colors()
+
+
+def category_color(name: str) -> str:
+    """Fixed color for a category; unknown categories get a stable fallback hue."""
+    if name in CATEGORY_COLORS:
+        return CATEGORY_COLORS[name]
+    # Deterministic fallback so an unmapped category is still stable across charts.
+    idx = abs(hash(name)) % len(_FALLBACK_HUES)
+    color = _shades(_FALLBACK_HUES[idx], 1)[0]
+    CATEGORY_COLORS[name] = color
+    return color
