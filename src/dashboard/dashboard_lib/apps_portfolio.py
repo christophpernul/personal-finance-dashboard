@@ -1,24 +1,32 @@
-import dash_html_components as html
+from dash import html, dcc
+import pandas as pd
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output
-import dash_core_components as dcc
 
 ### Import app (to define callbacks) and necessary preprocessed data
-from src.dashboard.dashboard_lib.app import app, df_orders, df_timeseries, df_expenses, df_incomes, portfolio_crypto_value
-from src.datahub.processing_layer import lib_data_operations as pl
-from src.dashboard.plotting_lib import lib_dash_plot as dpl
+from dashboard.dashboard_lib.app import (
+    app,
+    df_expenses,
+    df_incomes,
+    df_cashflow,
+    portfolio_crypto_value,
+)
+from datahub.processing_layer import lib_data_operations as pl
+from dashboard.plotting_lib import lib_dash_plot as dpl
 
-theme_colors = {
-    'background': '#32383E',
-    'text': '#FFFFFF'
-}
+theme_colors = {"background": "#32383E", "text": "#FFFFFF"}
 
 piechart_descriptions = [
-    {'values': 'Percentage', 'names': 'Region', 'title': 'Region'},
-    {'values': 'Percentage', 'names': 'Type', 'title': 'Type'},
-    {'values': 'Percentage', 'names': 'Distributing', 'title': 'Distributing'},
-    {'values': 'Percentage', 'names': 'Replicationmethod', 'title': 'Replicationmethod'}
+    {"values": "Percentage", "names": "Region", "title": "Region"},
+    {"values": "Percentage", "names": "Type", "title": "Type"},
+    {"values": "Percentage", "names": "Distributing", "title": "Distributing"},
+    {
+        "values": "Percentage",
+        "names": "Replicationmethod",
+        "title": "Replicationmethod",
+    },
 ]
+
 
 def html_expenses_tab(title="Expenses"):
     """
@@ -31,129 +39,126 @@ def html_expenses_tab(title="Expenses"):
     :return: html element of the tab
     """
     #### Upper panel: 2 Dropdowns: timespan & category
-    dropdown_timespan = dcc.Dropdown(options=[
-        {"label": "3 Months", "value": 3},
-        {"label": "6 Months", "value": 6},
-        {"label": "1 Year", "value": 12},
-        {"label": "2 Years", "value": 2*12},
-        {"label": "3 Years", "value": 3*12},
-        {"label": "4 Years", "value": 4*12},
-        {"label": "5 Years", "value": 5*12},
-        {"label": "Full", "value": -1}
-    ],
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "2 Years", "value": 2 * 12},
+            {"label": "3 Years", "value": 3 * 12},
+            {"label": "4 Years", "value": 4 * 12},
+            {"label": "5 Years", "value": 5 * 12},
+            {"label": "Full", "value": -1},
+        ],
         value=-1,
         id="dropdown-timespan",
-
     )
     category_default = "Overall"
-    distinct_categories = sorted(list(df_expenses.columns))
+    distinct_categories = list(df_expenses.columns)
     distinct_categories.append(category_default)
+    distinct_categories.sort()
 
-    dropdown_category = dcc.Dropdown(options=[
-                                                {"label": category, "value": category} for category in distinct_categories
-                                                ],
-                                        value=category_default,
-                                        id="dropdown-category"
+    dropdown_category = dcc.Dropdown(
+        options=[
+            {"label": category, "value": category}
+            for category in distinct_categories
+        ],
+        value=category_default,
+        id="dropdown-category",
     )
-    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
-                               dropdown_timespan,
-                               html.Br(),
-                               html.H2("Choose a category"),
-                               dropdown_category,
-                               html.Br()
-                               ]
-                              )
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+            html.H2("Choose a category"),
+            dropdown_category,
+            html.Br(),
+        ]
+    )
 
-    distinct_months = sorted(list(set([idx for idx in df_expenses.index])))[::-1]
+    distinct_months = sorted(list(set([idx for idx in df_expenses.index])))[
+        ::-1
+    ]
     month_default = distinct_months[0]
 
     ### Lower panel: Dropdown month
-    dropdown_month = dcc.Dropdown(options=[
-                                                {"label": str(timestamp.month_name()) + " " + str(timestamp.year),
-                                                 "value": timestamp
-                                                 } for timestamp in distinct_months
-                                            ],
-                                    value=month_default,
-                                    id="dropdown-month"
+    dropdown_month = dcc.Dropdown(
+        options=[
+            {
+                "label": str(timestamp.month_name())
+                + " "
+                + str(timestamp.year),
+                "value": timestamp,
+            }
+            for timestamp in distinct_months
+        ],
+        value=month_default,
+        id="dropdown-month",
     )
-    dropdown_panel_month = html.Div([html.H2("Choose a month"),
-                               dropdown_month
-                               ]
-                              )
+    dropdown_panel_month = html.Div(
+        [html.H2("Choose a month"), dropdown_month]
+    )
     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="main-barchart")
     html_average = html.H2(id="kpi-average")
     graph_panel_month = html.Div(id="barchart-month")
 
     upper_panel = html.Div(
-        dbc.Row([
-            dbc.Col(dropdown_panel,
-                    width=4,
-                    align='center'
-                    ),
-            dbc.Col(graph_panel,
-                    width=8,
-                    align='center'
-                    )
-        ],
-            justify='around'
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
         )
     )
 
     lower_panel = html.Div(
-        dbc.Row([
-            dbc.Col(dropdown_panel_month,
-                    width=4,
-                    align='center'
-                    ),
-            dbc.Col(graph_panel_month,
-                    width=8,
-                    align='center'
-                    )
-        ],
-            justify='around'
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel_month, width=4, align="center"),
+                dbc.Col(graph_panel_month, width=8, align="center"),
+            ],
+            justify="around",
         )
     )
 
-    heading = \
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    html.H1(html.B(title))
-                ),
-            ),
-            width=6,
-            align='center'
-        )
-    kpi_box = \
-        html.Div(
-            dbc.Row(
-                [dbc.Col(html.H2("Average Expenses")),
-                 dbc.Col(html_average)],
-                justify='around'
-            ),
-        )
-    kpi_panel = dbc.Col(
+    heading = dbc.Col(
         dbc.Card(
-            dbc.CardBody(
-                html.Div([kpi_box])
-            ),
+            dbc.CardBody(html.H1(html.B(title))),
         ),
         width=6,
-        align='center'
+        align="center",
+    )
+    kpi_box = html.Div(
+        dbc.Row(
+            [dbc.Col(html.H2("Average Expenses")), dbc.Col(html_average)],
+            justify="around",
+        ),
+    )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.Div([kpi_box])),
+        ),
+        width=6,
+        align="center",
     )
 
-    header_panel = dbc.Row([heading, kpi_panel], justify='around')
+    header_panel = dbc.Row([heading, kpi_panel], justify="around")
 
-    html_page = html.Div([
-        header_panel,
-        html.Br(),
-        upper_panel,
-        html.Hr(style={"color": "#FFFFFF", "border": "1px solid"}),
-        lower_panel
-    ])
+    html_page = html.Div(
+        [
+            header_panel,
+            html.Br(),
+            upper_panel,
+            html.Hr(style={"color": "#FFFFFF", "border": "1px solid"}),
+            lower_panel,
+        ]
+    )
 
-    return (html_page)
+    return html_page
+
 
 def html_income_tab(title="Income"):
     """
@@ -166,101 +171,178 @@ def html_income_tab(title="Income"):
     :return: html element of the tab
     """
 
-    dropdown_timespan = dcc.Dropdown(options=[
-        {"label": "3 Months", "value": 3},
-        {"label": "6 Months", "value": 6},
-        {"label": "1 Year", "value": 12},
-        {"label": "Full", "value": -1}
-    ],
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "Full", "value": -1},
+        ],
         value=-1,
         id="dropdown-timespan-income",
-
     )
     category_default = "Overall"
     distinct_categories = sorted(list(df_incomes.columns))
     distinct_categories.append(category_default)
 
-    dropdown_category = dcc.Dropdown(options=[
-                                                {"label": category, "value": category} for category in distinct_categories
-                                                ],
-                                        value=category_default,
-                                        id="dropdown-category-income"
+    dropdown_category = dcc.Dropdown(
+        options=[
+            {"label": category, "value": category}
+            for category in distinct_categories
+        ],
+        value=category_default,
+        id="dropdown-category-income",
     )
-    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
-                               dropdown_timespan,
-                               html.Br(),
-                               html.H2("Choose a category"),
-                               dropdown_category,
-                               html.Br()
-                               ]
-                              )
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+            html.H2("Choose a category"),
+            dropdown_category,
+            html.Br(),
+        ]
+    )
     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="main-barchart-income")
     html_average = html.H2(id="kpi-average-income")
 
     html_content = html.Div(
-        dbc.Row([
-            dbc.Col(dropdown_panel,
-                    width=4,
-                    align='center'
-                    ),
-            dbc.Col(graph_panel,
-                    width=8,
-                    align='center'
-                    )
-        ],
-            justify='around'
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
         )
     )
 
-    heading = \
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    html.H1(html.B(title))
-                ),
-            ),
-            width=6,
-            align='center'
-        )
-    kpi_box = \
-        html.Div(
-            dbc.Row(
-                [dbc.Col(html.H2("Average Income")),
-                 dbc.Col(html_average)],
-                justify='around'
-            ),
-        )
-    kpi_panel = dbc.Col(
+    heading = dbc.Col(
         dbc.Card(
-            dbc.CardBody(
-                html.Div([kpi_box])
-            ),
+            dbc.CardBody(html.H1(html.B(title))),
         ),
         width=6,
-        align='center'
+        align="center",
+    )
+    kpi_box = html.Div(
+        dbc.Row(
+            [dbc.Col(html.H2("Average Income")), dbc.Col(html_average)],
+            justify="around",
+        ),
+    )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.Div([kpi_box])),
+        ),
+        width=6,
+        align="center",
     )
 
-    header_panel = dbc.Row([heading, kpi_panel], justify='around')
+    header_panel = dbc.Row([heading, kpi_panel], justify="around")
 
-    html_page = html.Div([
-        header_panel,
-        html.Br(),
-        html_content
-    ])
+    html_page = html.Div([header_panel, html.Br(), html_content])
 
-    return (html_page)
+    return html_page
 
 
-def html_portfolio_overview(portfolio,
-                            group_columns: list,
-                            compute_columns: list,
-                            aggregation_columns: list,
-                            cost_column_name = "Investment",
-                            title = "Overview monthly Savings Plan",
-                            title_kpi_cost = "Monthly Investment",
-                            show_last_updated = False
-                            ):
+def html_cashflow_tab(title="Cashflow"):
+    """
+    Displays the tab with cashflow (income minues expenses) data by using a dropdown to specify timespan:
+    Top left: Title of the tab
+    Top right: KPI panel with average cashflow in given timeframe and for specified category
+    Left: Dropdown elements for timespan
+    Right: Barchart showing cashflow over time, updated by dropdowns including average expenses (same as KPI)
+    :param title: Title of the tab
+    :return: html element of the tab
+    """
+    #### Upper panel: 2 Dropdowns: timespan & category
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "2 Years", "value": 2 * 12},
+            {"label": "3 Years", "value": 3 * 12},
+            {"label": "4 Years", "value": 4 * 12},
+            {"label": "5 Years", "value": 5 * 12},
+            {"label": "Full", "value": -1},
+        ],
+        value=-1,
+        id="dropdown-timespan",
+    )
+
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+        ]
+    )
+
+    distinct_months = sorted(list(set([idx for idx in df_cashflow.index])))[
+        ::-1
+    ]
+    month_default = distinct_months[0]
+
+    ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
+    graph_panel = html.Div(id="main-barchart-cashflow")
+    html_average = html.H2(id="kpi-average-cashflow")
+
+    upper_panel = html.Div(
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
+        )
+    )
+
+    heading = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.H1(html.B(title))),
+        ),
+        width=6,
+        align="center",
+    )
+    kpi_box = html.Div(
+        dbc.Row(
+            [dbc.Col(html.H2("Average Cashflow")), dbc.Col(html_average)],
+            justify="around",
+        ),
+    )
+    kpi_panel = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.Div([kpi_box])),
+        ),
+        width=6,
+        align="center",
+    )
+
+    header_panel = dbc.Row([heading, kpi_panel], justify="around")
+
+    html_page = html.Div(
+        [
+            header_panel,
+            html.Br(),
+            upper_panel,
+        ]
+    )
+
+    return html_page
+
+
+def html_portfolio_overview(
+    portfolio,
+    group_columns: list,
+    compute_columns: list,
+    aggregation_columns: list,
+    cost_column_name="value",
+    share_column_name="shares",
+    title="Overview monthly Savings Plan",
+    title_kpi_cost="Monthly Investment",
+    show_last_updated=False,
+):
     """
     Creates a HTML element that displays four elements as a page:
     Top left: Title of page
@@ -277,121 +359,158 @@ def html_portfolio_overview(portfolio,
     :param show_last_updated: Flag, whether the date of the last price update of the title_kpi_cost is shown
     :return: HTML div element
     """
-    ################################ Prepare data for remainder ########################################################
-    grouped_portfolio = pl.compute_percentage_per_group(portfolio,
-                                                        group_columns,
-                                                        compute_columns,
-                                                        aggregation_columns
-                                                        )
+    overview_table = portfolio.copy()
 
-    portfolio_view = portfolio.copy()
+    # Calculate aggregated data for piecharts
+    type_aggregations = pl.compute_percentage_per_group(
+        overview_table, group_columns, compute_columns, aggregation_columns
+    )
+
     if show_last_updated == True:
-        assert len(set(portfolio_view["last_price_update"])) == 1, "Multiply dates for last price update in portfolio!"
-        last_updated = str(portfolio_view["last_price_update"].iloc[0]).split(" ")[0]
+        # assert (
+        #     len(set(overview_table["last_price_update"])) == 1
+        # ), "Multiple dates for last price update in portfolio!"
+        # TODO: Verify that it is no problem if multiple last update dates are there, because usually it is only due
+        # to different time zones for different stocks
+        last_updated = str(overview_table["last_price_update"].iloc[0]).split(
+            " "
+        )[0]
         title_kpi_cost = title_kpi_cost + " (" + last_updated + ")"
 
-    portfolio_view["cost/a"] = 12*portfolio_view[cost_column_name]*portfolio_view["TER%"]/100
-    total_costs = round(portfolio_view[cost_column_name].sum(), 2)
-    average_TER = round((portfolio_view["cost/a"]/(12*total_costs)).sum()*100, 3)
+    all_group_columns = ["name", "isin", "ter", "depot"] + group_columns
+    overview_table = (
+        overview_table.groupby(all_group_columns)[
+            [
+                cost_column_name,
+                # share_column_name,
+            ]
+        ]
+        .sum()
+        .reset_index()
+        .sort_values(cost_column_name, ascending=False)
+    )
 
-    portfolio_view = portfolio_view.drop(["cost/a"], axis=1)
+    overview_table = overview_table[
+        all_group_columns
+        + [
+            cost_column_name,
+            # share_column_name,
+        ]
+    ]
+    overview_table[cost_column_name] = round(
+        overview_table[cost_column_name], 2
+    )
 
-    all_group_columns = ["Name", "ISIN", "TER%"]+ group_columns
-    portfolio_view = portfolio_view.groupby(all_group_columns).sum()\
-                                    .reset_index().sort_values(cost_column_name, ascending=False)
+    # Calculate costs
+    overview_table["cost_per_year"] = (
+        12 * overview_table[cost_column_name] * overview_table["ter"] / 100
+    )
+    total_costs = round(overview_table[cost_column_name].sum(), 2)
+    average_TER = round(
+        (overview_table["cost_per_year"] / (12 * total_costs)).sum() * 100, 3
+    )
+    overview_table = overview_table.drop(["cost_per_year"], axis=1)
 
-    portfolio_view = portfolio_view[all_group_columns + [cost_column_name]]
+    ################################ Define Dash App configuration ########################################################
 
+    heading = dbc.Col(
+        dbc.Card(
+            dbc.CardBody(html.H1(html.B(title))),
+        ),
+        width=6,
+        align="center",
+    )
 
+    kpi_panel_top = html.Div(
+        dbc.Row(
+            [
+                dbc.Col(html.H2("Average TER")),
+                dbc.Col(html.H2(html.B(f"{average_TER} %"))),
+            ],
+            justify="around",
+        ),
+    )
 
-    ################################ Define Dash App configuration ### #####################################################
-
-    heading = \
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    html.H1(html.B(title))
-                ),
-            ),
-            width=6,
-            align='center'
-        )
-
-    kpi_panel_top = \
-                    html.Div(
-                        dbc.Row(
-                            [dbc.Col(html.H2("Average TER")),
-                             dbc.Col(html.H2(html.B(f"{average_TER} %")))],
-                            justify='around'
-                ),
-            )
-
-    kpi_panel_bottom = \
-                    html.Div(
-                        dbc.Row(
-                            [dbc.Col(html.H2(title_kpi_cost)),
-                             dbc.Col(html.H2(html.B(f"{total_costs} €")))],
-                            justify='around'
-                ),
-            )
+    kpi_panel_bottom = html.Div(
+        dbc.Row(
+            [
+                dbc.Col(html.H2(title_kpi_cost)),
+                dbc.Col(html.H2(html.B(f"{total_costs} €"))),
+            ],
+            justify="around",
+        ),
+    )
 
     kpi_panel = dbc.Col(
         dbc.Card(
-            dbc.CardBody(
-                html.Div([kpi_panel_top, kpi_panel_bottom])
-            ),
+            dbc.CardBody(html.Div([kpi_panel_top, kpi_panel_bottom])),
         ),
         width=6,
-        align='center'
+        align="center",
     )
 
-    header_panel = dbc.Row([heading,kpi_panel], justify='around')
+    header_panel = dbc.Row([heading, kpi_panel], justify="around")
 
-    dataframe_panel = \
-        dbc.Card(
-            dbc.CardBody(
-                dpl.show_dataframe(portfolio_view, style_dict=theme_colors)
+    dataframe_panel = dbc.Card(
+        dbc.CardBody(
+            dpl.show_dataframe(overview_table, style_dict=theme_colors)
+        ),
+    )
+
+    chart_panel = dbc.Row(
+        [
+            dbc.Col(
+                dpl.show_piechart(
+                    type_aggregations[0],
+                    group_columns[0],
+                    "percentage",
+                    theme_colors,
+                ),
+                width=3,
+                align="center",
             ),
-        )
-
-    chart_panel = dbc.Row([
-                            dbc.Col(dpl.show_piechart(grouped_portfolio[0],
-                                                      group_columns[0],
-                                                      "Percentage",
-                                                       theme_colors),
-                                    width=3,
-                                    align='center'),
-                            dbc.Col(dpl.show_piechart(grouped_portfolio[1],
-                                                      group_columns[1],
-                                                      "Percentage",
-                                                       theme_colors),
-                                    width=3,
-                                    align='center'),
-                            dbc.Col(dpl.show_piechart(grouped_portfolio[2],
-                                                      group_columns[2],
-                                                      "Percentage",
-                                                       theme_colors),
-                                    width=3,
-                                    align='center'),
-                            dbc.Col(dpl.show_piechart(grouped_portfolio[3],
-                                                      group_columns[3],
-                                                      "Percentage",
-                                                       theme_colors),
-                                    width=3,
-                                    align='center')
-                            ],
-        justify='around'
+            dbc.Col(
+                dpl.show_piechart(
+                    type_aggregations[1],
+                    group_columns[1],
+                    "percentage",
+                    theme_colors,
+                ),
+                width=3,
+                align="center",
+            ),
+            dbc.Col(
+                dpl.show_piechart(
+                    type_aggregations[2],
+                    group_columns[2],
+                    "percentage",
+                    theme_colors,
+                ),
+                width=3,
+                align="center",
+            ),
+            dbc.Col(
+                dpl.show_piechart(
+                    type_aggregations[3],
+                    group_columns[3],
+                    "percentage",
+                    theme_colors,
+                ),
+                width=3,
+                align="center",
+            ),
+        ],
+        justify="around",
     )
 
+    tab_overview = html.Div([header_panel, dataframe_panel, chart_panel])
+    return tab_overview
 
 
-    tab_overview = html.Div([header_panel,
-                             dataframe_panel,
-                             chart_panel
-                            ]
-                    )
-    return(tab_overview)
-
+# TODO: The Portfolio Timeseries feature is disabled until the datahub produces
+#       the price timeseries and the trade data (`orders`) it relies on. Once
+#       those are loaded in app.py, re-import them here, re-enable the tab in
+#       main_app.py, and restore the commented-out callback below.
 def html_portfolio_timeseries(title="Portfolio Price Trend"):
     """
     Shows a panel of dropdown elements on the left hand side, where the user is able to filter the data
@@ -402,68 +521,61 @@ def html_portfolio_timeseries(title="Portfolio Price Trend"):
     :return: html element of the tab
     """
 
-    dropdown_timespan = dcc.Dropdown(options=[
-                                        {"label": "1 Month", "value": 1},
-                                        {"label": "3 Months", "value": 3},
-                                        {"label": "6 Months", "value": 6},
-                                        {"label": "1 Year", "value": 12},
-                                        {"label": "5 Years", "value": 60},
-                                        {"label": "Full", "value": -1}
-                                    ],
-                                    value=-1,
-                                    id="dropdown-timespan",
-
+    dropdown_timespan = dcc.Dropdown(
+        options=[
+            {"label": "1 Month", "value": 1},
+            {"label": "3 Months", "value": 3},
+            {"label": "6 Months", "value": 6},
+            {"label": "1 Year", "value": 12},
+            {"label": "5 Years", "value": 60},
+            {"label": "Full", "value": -1},
+        ],
+        value=-1,
+        id="dropdown-timespan",
     )
     stock_default = "Overall Portfolio"
-    distinct_stocks = list(df_orders["Name"].drop_duplicates().sort_values())
+    distinct_stocks = list(orders["name"].drop_duplicates().sort_values())
     distinct_stocks.append(stock_default)
 
-    dropdown_stocks = dcc.Dropdown(options=[
-        {"label": stock_name, "value": stock_name} for stock_name in distinct_stocks
-    ],
+    dropdown_stocks = dcc.Dropdown(
+        options=[
+            {"label": stock_name, "value": stock_name}
+            for stock_name in distinct_stocks
+        ],
         value=stock_default,
-        id="dropdown-stocks"
+        id="dropdown-stocks",
     )
-    dropdown_panel = html.Div([html.H2("Choose a timeframe"),
-                                dropdown_timespan,
-                                 html.Br(),
-                                html.H2("Choose a stock"),
-                                 dropdown_stocks,
-                                 html.Br()
-                               ]
-                             )
+    dropdown_panel = html.Div(
+        [
+            html.H2("Choose a timeframe"),
+            dropdown_timespan,
+            html.Br(),
+            html.H2("Choose a stock"),
+            dropdown_stocks,
+            html.Br(),
+        ]
+    )
     ### This graph panel is filtered depending on the selected filters in the above defined dropdowns
     graph_panel = html.Div(id="timeseries-chart")
 
     html_content = html.Div(
-                        dbc.Row([
-                            dbc.Col(dropdown_panel,
-                                    width=4,
-                                    align='center'
-                                    ),
-                            dbc.Col(graph_panel,
-                                    width=8,
-                                    align='center'
-                                    )
-                                ],
-                            justify='around'
-                        )
+        dbc.Row(
+            [
+                dbc.Col(dropdown_panel, width=4, align="center"),
+                dbc.Col(graph_panel, width=8, align="center"),
+            ],
+            justify="around",
+        )
     )
 
-    heading = \
-            dbc.Card(
-                dbc.CardBody(
-                    html.H1(html.B(title))
-                ),
-            )
+    heading = dbc.Card(
+        dbc.CardBody(html.H1(html.B(title))),
+    )
 
-    html_page = html.Div([
-        heading,
-        html.Br(),
-        html_content
-    ])
+    html_page = html.Div([heading, html.Br(), html_content])
 
-    return(html_page)
+    return html_page
+
 
 def timeseries_chart(timespan, stock_name):
     """
@@ -477,7 +589,8 @@ def timeseries_chart(timespan, stock_name):
     df_date_sorted = pl.filter_portfolio_date(df_timeseries, timespan)
     df_sorted = pl.filter_portfolio_stock(df_date_sorted, stock_name)
 
-    return(dpl.plot_stock_linechart(df_sorted))
+    return dpl.plot_stock_linechart(df_sorted)
+
 
 def barchart_expenses(timespan, category):
     """
@@ -487,13 +600,20 @@ def barchart_expenses(timespan, category):
     :param category: Category for which expenses are shown
     :return: barchart HTML element
     """
-    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    df_date_sorted = pl.filter_portfolio_date(
+        df_expenses.reset_index(), timespan
+    ).set_index("date")
     if category == "Overall":
-        df_sorted = df_date_sorted.sum(axis=1)
+        df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(
+            columns={0: "value"}
+        )
     else:
-        assert category in df_expenses.columns, "Category not in columns of dataframe!"
-        df_sorted = df_date_sorted[category]
-    return(dpl.plot_barchart(df_sorted, "Expenses"))
+        assert (
+            category in df_expenses.columns
+        ), "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[[category]]
+    return dpl.plot_barchart(df_sorted, "Expenses")
+
 
 def barchart_month(month):
     """
@@ -501,11 +621,21 @@ def barchart_month(month):
     :param month: pd.Timestamp of last day of selected month in dropdown
     :return: barchart HTML element
     """
-    import pandas as pd
-    df_month = df_expenses.reset_index()[df_expenses.reset_index()["Date"] == month].set_index("Date").copy()
-    df_chart = pd.DataFrame(df_month.stack()).rename(columns={0:"Expenses"}).reset_index()
-    df_chart = df_chart[["Tags", "Expenses"]].set_index("Tags")
-    return(dpl.plot_barchart(df_chart, title="Expenses", x_axis="Tags"))
+    df_month = (
+        df_expenses.reset_index()[df_expenses.reset_index()["date"] == month]
+        .set_index("date")
+        .copy()
+    )
+    df_chart = (
+        pd.DataFrame(df_month.stack())
+        .rename_axis(index=["date", "tag"])
+        .rename(columns={0: "value"})
+        .reset_index()
+        .drop(columns="date", axis=1)
+        .set_index("tag")
+    )
+    return dpl.plot_barchart(df_chart, title="Expenses", x_axis="tag")
+
 
 def barchart_income(timespan, category):
     """
@@ -515,122 +645,144 @@ def barchart_income(timespan, category):
     :param category: Category for which income is shown
     :return: barchart HTML element
     """
-    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    df_date_sorted = pl.filter_portfolio_date(
+        df_incomes.reset_index(), timespan
+    ).set_index("date")
     if category == "Overall":
-        df_sorted = df_date_sorted.sum(axis=1)
+        df_sorted = pd.DataFrame(df_date_sorted.sum(axis=1)).rename(
+            columns={0: "value"}
+        )
     else:
-        assert category in df_incomes.columns, "Category not in columns of dataframe!"
-        df_sorted = df_date_sorted[category]
-    return(dpl.plot_barchart(df_sorted, "Income"))
+        assert (
+            category in df_incomes.columns
+        ), "Category not in columns of dataframe!"
+        df_sorted = df_date_sorted[[category]]
+    return dpl.plot_barchart(df_sorted, "Income")
 
-def html_crypto_overview(title="Cryptocurrencies",
-                         title_kpi="Total Value"):
-    """
-    Shows a KPI element with the total crypto-portfolio value as well as a dropdown element.
-    By selecting a crypto-exchange (or "Overall" for the overall portfolio), a dataframe is displayed, that shows
-    all cryptocurrencies on that exchange with the current value in Euro.
-    :param title: Title of the tab
-    :param title_kpi: Title of the KPI element
-    :return: html element of the tab
-    """
-    ################################ Prepare data for remainder ########################################################
-    ### Prepare KPI content
-    from datetime import datetime
-    date_today = datetime.now().strftime(format="%Y-%m-%d %H:%M:%S")
-    title_kpi += " (" + date_today + ")"
-    total_value = portfolio_crypto_value[portfolio_crypto_value["exchange"] == "Overall"]["value"].sum()
-    value_show = str(round(total_value, 2)) + " €"
 
-    ################################ Define Dash App configuration #####################################################
-    heading = \
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    html.H1(html.B(title))
-                ),
-            ),
-            width=6,
-            align='center'
-        )
-    kpi_box = \
-        html.Div(
-            dbc.Row(
-                [dbc.Col(html.H2(title_kpi)),
-                 dbc.Col(html.H2(html.B(value_show)))],
-                justify='around'
-            ),
-        )
-    kpi_panel = dbc.Col(
-        dbc.Card(
-            dbc.CardBody(
-                html.Div([kpi_box])
-            ),
-        ),
-        width=6,
-        align='center'
+def barchart_cashflow(timespan):
+    """
+    Displays the content of the main-barchart panel, after filtering by the selected dropdown element
+    (timespan). Shows a barchart of the selected cashflow for the specified timespan.
+    :param timespan: How many months into the past the data should range.
+    :return: barchart HTML element
+    """
+    df_date_sorted = (
+        pl.filter_portfolio_date(df_cashflow.reset_index(), timespan)
+        .set_index("date")
+        .rename(columns={"total": "value"})
     )
 
-    header_panel = dbc.Row([heading, kpi_panel], justify='around')
-
-    ### Body panel
-    exchange_default = "Overall"
-    distinct_exchanges = sorted(list(portfolio_crypto_value["exchange"].drop_duplicates().sort_values()))
-
-    dropdown_exchange = dcc.Dropdown(options=[
-        {"label": exchange, "value": exchange} for exchange in distinct_exchanges
-    ],
-        value=exchange_default,
-        id="dropdown-crypto-exchange"
-    )
-    dropdown_panel = \
-    dbc.Card(
-        dbc.CardBody(
-            html.Div([html.H2("Choose an exchange"),
-                      dropdown_exchange,
-                      ]
-                     )
-        )
-    )
-
-    dataframe_panel = \
-        dbc.Card(
-            dbc.CardBody(
-                html.Div(id="crypto-dataframe")
-            ),
-        )
-
-    tab_content = html.Div([header_panel,
-                            dropdown_panel,
-                            dataframe_panel
-                            ]
-                           )
-
-    return(tab_content)
+    return dpl.plot_barchart(df_date_sorted, "Cashflow")
 
 
-########################################### CALLBACK FUNCTIONS #########################################################
-# These callback functions need to be defined outside of the function, which uses it, because
-# all callbacks need to be defined when the app is started!
-@app.callback(Output('timeseries-chart', 'children'),
-              [Input('dropdown-timespan', 'value'),
-                Input('dropdown-stocks', 'value')
-               ]
-              )
-def dropdown_timeseries_chart(timespan: int, stock_name: str):
-    """
-    Get the content element for the timeseries chart for the given dropdown selection.
-    :param timespan: Amount of months into past, that should be visible in the plot
-    :param stock_name: name of stock to show in the timeseries plot
-    :return: html element of a timeseries plot
-    """
-    html_div = timeseries_chart(timespan, stock_name)
-    return (html_div)
-
-@app.callback(Output('main-barchart', 'children'),
-              [Input('dropdown-timespan', 'value'),
-                Input('dropdown-category', 'value')
-               ]
-              )
+# def html_crypto_overview(title="Cryptocurrencies",
+#                          title_kpi="Total Value"):
+#     """
+#     Shows a KPI element with the total crypto-portfolio value as well as a dropdown element.
+#     By selecting a crypto-exchange (or "Overall" for the overall portfolio), a dataframe is displayed, that shows
+#     all cryptocurrencies on that exchange with the current value in Euro.
+#     :param title: Title of the tab
+#     :param title_kpi: Title of the KPI element
+#     :return: html element of the tab
+#     """
+#     ################################ Prepare data for remainder ########################################################
+#     ### Prepare KPI content
+#     from datetime import datetime
+#     date_today = datetime.now().strftime(format="%Y-%m-%d %H:%M:%S")
+#     title_kpi += " (" + date_today + ")"
+#     total_value = portfolio_crypto_value[portfolio_crypto_value["exchange"] == "Overall"]["value"].sum()
+#     value_show = str(round(total_value, 2)) + " €"
+#
+#     ################################ Define Dash App configuration #####################################################
+#     heading = \
+#         dbc.Col(
+#             dbc.Card(
+#                 dbc.CardBody(
+#                     html.H1(html.B(title))
+#                 ),
+#             ),
+#             width=6,
+#             align='center'
+#         )
+#     kpi_box = \
+#         html.Div(
+#             dbc.Row(
+#                 [dbc.Col(html.H2(title_kpi)),
+#                  dbc.Col(html.H2(html.B(value_show)))],
+#                 justify='around'
+#             ),
+#         )
+#     kpi_panel = dbc.Col(
+#         dbc.Card(
+#             dbc.CardBody(
+#                 html.Div([kpi_box])
+#             ),
+#         ),
+#         width=6,
+#         align='center'
+#     )
+#
+#     header_panel = dbc.Row([heading, kpi_panel], justify='around')
+#
+#     ### Body panel
+#     exchange_default = "Overall"
+#     distinct_exchanges = sorted(list(portfolio_crypto_value["exchange"].drop_duplicates().sort_values()))
+#
+#     dropdown_exchange = dcc.Dropdown(options=[
+#         {"label": exchange, "value": exchange} for exchange in distinct_exchanges
+#     ],
+#         value=exchange_default,
+#         id="dropdown-crypto-exchange"
+#     )
+#     dropdown_panel = \
+#     dbc.Card(
+#         dbc.CardBody(
+#             html.Div([html.H2("Choose an exchange"),
+#                       dropdown_exchange,
+#                       ]
+#                      )
+#         )
+#     )
+#
+#     dataframe_panel = \
+#         dbc.Card(
+#             dbc.CardBody(
+#                 html.Div(id="crypto-dataframe")
+#             ),
+#         )
+#
+#     tab_content = html.Div([header_panel,
+#                             dropdown_panel,
+#                             dataframe_panel
+#                             ]
+#                            )
+#
+#     return(tab_content)
+#
+#
+# ########################################### CALLBACK FUNCTIONS #########################################################
+# # These callback functions need to be defined outside of the function, which uses it, because
+# # all callbacks need to be defined when the app is started!
+# @app.callback(Output('timeseries-chart', 'children'),
+#               [Input('dropdown-timespan', 'value'),
+#                 Input('dropdown-stocks', 'value')
+#                ]
+#               )
+# def dropdown_timeseries_chart(timespan: int, stock_name: str):
+#     """
+#     Get the content element for the timeseries chart for the given dropdown selection.
+#     :param timespan: Amount of months into past, that should be visible in the plot
+#     :param stock_name: name of stock to show in the timeseries plot
+#     :return: html element of a timeseries plot
+#     """
+#     html_div = timeseries_chart(timespan, stock_name)
+#     return (html_div)
+#
+@app.callback(
+    Output("main-barchart", "children"),
+    [Input("dropdown-timespan", "value"), Input("dropdown-category", "value")],
+)
 def dropdown_expenses_chart(timespan: int, category: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
@@ -639,13 +791,27 @@ def dropdown_expenses_chart(timespan: int, category: str):
     :return: html element of a timeseries plot
     """
     html_div = barchart_expenses(timespan, category)
-    return (html_div)
+    return html_div
 
-@app.callback(Output('kpi-average', 'children'),
-              [Input('dropdown-timespan', 'value'),
-                Input('dropdown-category', 'value')
-               ]
-              )
+
+@app.callback(
+    Output("main-barchart-cashflow", "children"),
+    [Input("dropdown-timespan", "value")],
+)
+def dropdown_cashflow_chart(timespan: int):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :return: html element of a timeseries plot
+    """
+    html_div = barchart_cashflow(timespan)
+    return html_div
+
+
+@app.callback(
+    Output("kpi-average", "children"),
+    [Input("dropdown-timespan", "value"), Input("dropdown-category", "value")],
+)
 def dropdown_expenses_average(timespan: int, category: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
@@ -653,19 +819,42 @@ def dropdown_expenses_average(timespan: int, category: str):
     :param stock_name: name of stock to show in the timeseries plot
     :return: html element of a timeseries plot
     """
-    df_date_sorted = pl.filter_portfolio_date(df_expenses.reset_index(), timespan).set_index("Date")
+    df_date_sorted = pl.filter_portfolio_date(
+        df_expenses.reset_index(), timespan
+    ).set_index("date")
     if category == "Overall":
         df_sorted = df_date_sorted.sum(axis=1)
     else:
-        assert category in df_expenses.columns, "Category not in columns of dataframe!"
+        assert (
+            category in df_expenses.columns
+        ), "Category not in columns of dataframe!"
         df_sorted = df_date_sorted[category]
     average = -df_sorted.mean()
     html_div = html.B(f"{average:.2f} €")
-    return (html_div)
+    return html_div
 
-@app.callback(Output('barchart-month', 'children'),
-              Input('dropdown-month', 'value')
-              )
+
+@app.callback(
+    Output("kpi-average-cashflow", "children"),
+    [Input("dropdown-timespan", "value")],
+)
+def dropdown_cashflow_average(timespan: int):
+    """
+    Get the content element for the timeseries chart for the given dropdown selection.
+    :param timespan: Amount of months into past, that should be visible in the plot
+    :return: html element of a timeseries plot
+    """
+    df_date_sorted = pl.filter_portfolio_date(
+        df_cashflow.reset_index(), timespan
+    ).set_index("date")
+    average = df_date_sorted.mean().iloc[0]
+    html_div = html.B(f"{average:.2f} €")
+    return html_div
+
+
+@app.callback(
+    Output("barchart-month", "children"), Input("dropdown-month", "value")
+)
 def dropdown_month_barchart(month):
     """
     Get the content element for the barchart for the given dropdown selection (month).
@@ -673,13 +862,16 @@ def dropdown_month_barchart(month):
     :return: html element of a timeseries plot
     """
     html_div = barchart_month(month)
-    return (html_div)
+    return html_div
 
-@app.callback(Output('main-barchart-income', 'children'),
-              [Input('dropdown-timespan-income', 'value'),
-                Input('dropdown-category-income', 'value')
-               ]
-              )
+
+@app.callback(
+    Output("main-barchart-income", "children"),
+    [
+        Input("dropdown-timespan-income", "value"),
+        Input("dropdown-category-income", "value"),
+    ],
+)
 def dropdown_income_chart(timespan: int, category: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
@@ -688,13 +880,16 @@ def dropdown_income_chart(timespan: int, category: str):
     :return: html element of a timeseries plot
     """
     html_div = barchart_income(timespan, category)
-    return (html_div)
+    return html_div
 
-@app.callback(Output('kpi-average-income', 'children'),
-              [Input('dropdown-timespan-income', 'value'),
-                Input('dropdown-category-income', 'value')
-               ]
-              )
+
+@app.callback(
+    Output("kpi-average-income", "children"),
+    [
+        Input("dropdown-timespan-income", "value"),
+        Input("dropdown-category-income", "value"),
+    ],
+)
 def dropdown_income_average(timespan: int, category: str):
     """
     Get the content element for the timeseries chart for the given dropdown selection.
@@ -702,26 +897,31 @@ def dropdown_income_average(timespan: int, category: str):
     :param stock_name: name of stock to show in the timeseries plot
     :return: html element of a timeseries plot
     """
-    df_date_sorted = pl.filter_portfolio_date(df_incomes.reset_index(), timespan).set_index("Date")
+    df_date_sorted = pl.filter_portfolio_date(
+        df_incomes.reset_index(), timespan
+    ).set_index("date")
     if category == "Overall":
         df_sorted = df_date_sorted.sum(axis=1)
     else:
-        assert category in df_incomes.columns, "Category not in columns of dataframe!"
+        assert (
+            category in df_incomes.columns
+        ), "Category not in columns of dataframe!"
         df_sorted = df_date_sorted[category]
     average = df_sorted.mean()
     html_div = html.B(f"{average:.2f} €")
-    return (html_div)
+    return html_div
 
-@app.callback(Output('crypto-dataframe', 'children'),
-              Input('dropdown-crypto-exchange', 'value'))
-def dropdown_crypto_exchange(exchange: str):
-    """
-    Render crypto-exchange dropdown to filter to dataframe, that should be displayed, for the overall portfolio
-    or a specfic exchange.
-    :param exchange: Name of exchange
-    :return: HTML element of the filtered dataframe to display
-    """
-    df_crypto_show = portfolio_crypto_value[portfolio_crypto_value["exchange"] == exchange]
-    df_crypto_show = df_crypto_show[["exchange", "currency", "name", "amount", "value"]]\
-                                    .sort_values("value",ascending=False)
-    return(dpl.show_dataframe(df_crypto_show, style_dict=theme_colors))
+
+# @app.callback(Output('crypto-dataframe', 'children'),
+#               Input('dropdown-crypto-exchange', 'value'))
+# def dropdown_crypto_exchange(exchange: str):
+#     """
+#     Render crypto-exchange dropdown to filter to dataframe, that should be displayed, for the overall portfolio
+#     or a specfic exchange.
+#     :param exchange: Name of exchange
+#     :return: HTML element of the filtered dataframe to display
+#     """
+#     df_crypto_show = portfolio_crypto_value[portfolio_crypto_value["exchange"] == exchange]
+#     df_crypto_show = df_crypto_show[["exchange", "currency", "name", "amount", "value"]]\
+#                                     .sort_values("value",ascending=False)
+#     return(dpl.show_dataframe(df_crypto_show, style_dict=theme_colors))

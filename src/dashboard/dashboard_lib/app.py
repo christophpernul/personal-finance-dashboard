@@ -6,36 +6,68 @@ See: https://community.plotly.com/t/dash-callback-in-a-separate-file/14122
 """
 import dash
 import dash_bootstrap_components as dbc
-from src.datahub.processing_layer import lib_data_operations as pl
-from src.datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
+import pandas as pd
 
-app = dash.Dash(__name__,
-                title="Finance App",
-                suppress_callback_exceptions=True,
-                external_stylesheets=[dbc.themes.SLATE]
-                )
+# from datahub.datahub_crypto.extract_crypto_data import get_current_cryptocurrency_price
+app = dash.Dash(
+    __name__,
+    title="Finance App",
+    suppress_callback_exceptions=True,
+    external_stylesheets=[dbc.themes.SLATE],
+)
 server = app.server
 
 ################################ Data Processing for ETF portfolio #####################################################
-(df_etf_init, df_orders_init, df_dividends, df_income_init, df_prices_init, \
-    df_cashflow_init, _, portfolio_crypto) = pl.load_data()
-crypto_prices = get_current_cryptocurrency_price(currency="EUR")
+# TODO: Load only necessary data and drop everything else! Use load_data() function instead!
+DATAHUB_ROOT_FILEPATH = "D:/SynologyDrive/Finance/data/datahub/"
+df_expenses = pd.read_csv(
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/target_cashflow__expenses.csv",
+    sep=";",
+    decimal=",",
+)
+df_incomes = pd.read_csv(
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}target/target_cashflow__incomes.csv",
+    sep=";",
+    decimal=",",
+)
+df_expenses["date"] = pd.to_datetime(df_expenses["date"], format="%Y-%m-%d")
+df_expenses = df_expenses.set_index("date")
+df_incomes["date"] = pd.to_datetime(df_incomes["date"], format="%Y-%m-%d")
+df_incomes = df_incomes.set_index("date")
 
-df_orders = pl.preprocess_orders(df_orders_init)
-df_prices = pl.preprocess_prices(df_prices_init)
-df_etf = pl.preprocess_etf_masterdata(df_etf_init)
-df_cashflow = pl.cleaning_cashflow(df_cashflow_init)
-(incomes, expenses) = pl.split_cashflow_data(df_cashflow)
-(caution_expenses, df_expenses) = pl.preprocess_cashflow(expenses)
-df_income_total = pl.combine_incomes(incomes, df_income_init)
-(caution_income, df_incomes) = pl.preprocess_cashflow(df_income_total)
+# Prepare cashflow data
+df_expenses_copy = df_expenses.copy()
+df_expenses_copy["total"] = df_expenses_copy.sum(axis=1)
+df_expenses_copy = df_expenses_copy[["total"]]
 
-orders_etf = pl.enrich_orders(df_orders, df_etf)
-portfolio_monthly = pl.get_current_portfolio(orders_etf)
-portfolio_value = pl.get_portfolio_value(orders_etf, df_prices)
+df_incomes_copy = df_incomes.copy()
+df_incomes_copy["total"] = df_incomes_copy.sum(axis=1)
+df_incomes_copy = df_incomes_copy[["total"]]
 
-portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)
+df_cashflow = df_incomes_copy + df_expenses_copy
 
+# TODO: Drop this empty data for unused tabs!
+portfolio_crypto_value = pd.DataFrame()
 
-df_timeseries = pl.prepare_timeseries(df_orders)
+# ---------------- LOAD PRECALCULATED PORTFOLIO DATA --------------------
+# Reuse the tables the datahub already computes instead of preprocessing here.
+portfolio_value = pd.read_csv(
+    filepath_or_buffer=f"{DATAHUB_ROOT_FILEPATH}transform/transform_etf__portfolio_value.csv",
+    sep=";",
+    decimal=",",
+)
 
+# TODO: The current portfolio (current holdings per position) is not yet
+#       produced by the datahub. Calculate it there first, then load it from
+#       disk here instead of this empty placeholder.
+current_portfolio = pd.DataFrame()
+
+# TODO: The portfolio price timeseries is not yet produced by the datahub.
+#       Calculate it there, load it from disk, and re-enable the
+#       "Portfolio Timeseries" tab (main_app.py) together with the trade data
+#       (`orders`) that fed its stock selector.
+# orders = <preprocessed trades>
+# df_timeseries = <prepare_timeseries(orders_enriched)>
+
+# crypto_prices = get_current_cryptocurrency_price(currency="EUR")
+# portfolio_crypto_value = pl.compute_crypto_portfolio_value(portfolio_crypto, crypto_prices)

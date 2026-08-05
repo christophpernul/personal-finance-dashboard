@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 
+
 def update_cashflow_data():
     """
     Loads all existing raw files of cashflow per month, appends them and saves them in a single csv.
@@ -17,5 +18,8 @@ def update_cashflow_data():
             df_all = df.copy()
         elif count > 0:
             df_all = df_all.append(df)
-        print("Bilanz " + filename[7:14] + ": Number of transactions = ", df.count()[0])
+        print(
+            "Bilanz " + filename[7:14] + ": Number of transactions = ",
+            df.count()[0],
+        )
     df_all.to_csv(base_path + out_filename + ".csv", index=False)

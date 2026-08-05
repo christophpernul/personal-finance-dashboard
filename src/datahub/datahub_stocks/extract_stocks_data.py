@@ -35,16 +35,22 @@ def extract_etf_master_data(isin_list: list, source_url: str):
     """
     stock_list = []
     for isin in isin_list:
-        url = source_url + f"?query={isin}&groupField=index&from=search&isin={isin}#overview"
+        url = (
+            source_url
+            + f"?query={isin}&groupField=index&from=search&isin={isin}#overview"
+        )
         r = requests.get(url)
-        assert r.status_code == 200, "EXTRACT: JUST-ETF: HTTP Error, {}".format(r.status_code)
+        assert (
+            r.status_code == 200
+        ), "EXTRACT: JUST-ETF: HTTP Error, {}".format(r.status_code)
 
         html = r.content.decode("utf-8")
         stock_dict = parse_etf_master_data(html)
         stock_dict["ISIN"] = isin
         stock_list.append(stock_dict)
     assert len(stock_list) == len(
-        isin_list), "EXTRACT: Extract stock master data from justetf was not possible for all stocks!"
+        isin_list
+    ), "EXTRACT: Extract stock master data from justetf was not possible for all stocks!"
     return pd.DataFrame(stock_list)
 
 
@@ -57,7 +63,10 @@ def extract_etf_price_data(isin_list: list, source_url: str):
     """
     stock_list = []
     for isin in isin_list:
-        url = source_url + f"?query={isin}&groupField=index&from=search&isin={isin}#overview"
+        url = (
+            source_url
+            + f"?query={isin}&groupField=index&from=search&isin={isin}#overview"
+        )
         r = requests.get(url)
         assert r.status_code == 200, "HTTP Error, {}".format(r.status_code)
 
@@ -65,5 +74,7 @@ def extract_etf_price_data(isin_list: list, source_url: str):
         stock_dict = parse_etf_prices(html)
         stock_dict["ISIN"] = isin
         stock_list.append(stock_dict)
-    assert len(stock_list) == len(isin_list), "EXTRACT: Extract stock price data from justetf was not possible for all stocks!"
+    assert len(stock_list) == len(
+        isin_list
+    ), "EXTRACT: Extract stock price data from justetf was not possible for all stocks!"
     return pd.DataFrame(stock_list)
