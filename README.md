@@ -9,6 +9,55 @@ Dashboard giving an overview of personal finances. It contains multiple tabs:
 
 The dashboard was built using Python Plotly Dash:[https://dash.plotly.com/]()
 
+## The two dashboards
+
+This repository ships **two independent Dash applications**. Both are launched as
+Python modules from the `src` directory (which acts as the package root, so
+imports omit the `src.` prefix).
+
+### 1. Classic dashboard (`src/dashboard`)
+
+The original multi-tab dashboard (expenses, income, cashflow, monthly plan,
+portfolio statistics, cryptocurrencies, savings). It is wired to the full
+`datahub` / processing layer of this repo and depends on its sibling submodules
+(`dashboard_lib`, `plotting_lib`).
+
+Run it from the `src` directory:
+
+```bash
+cd src
+python -m dashboard.main_app
+```
+
+It starts on the Dash default at http://127.0.0.1:8050 (debug mode on).
+
+### 2. Interactive dashboard (`src/interactive_dashboard`)
+
+A newer, **self-contained** interactive dashboard focused on cashflow and
+portfolio value. It is deliberately independent of the other `src` modules: it
+reads the pre-aggregated cashflow/portfolio CSVs directly and builds its own Dash
+app. This is why it lives at the top of `src` rather than inside `dashboard`.
+
+Run it from the repo root:
+
+```bash
+python -m src.interactive_dashboard.app
+```
+
+It starts on http://127.0.0.1:8050 by default. The following environment
+variables can override its behaviour:
+
+| Variable               | Default                                              | Purpose                                  |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------- |
+| `DASH_PORT`            | `8050`                                               | Port to serve on                         |
+| `DASH_DEBUG`           | `1`                                                  | Debug mode (`0`/`false` to disable)      |
+| `DASH_RELOAD`          | `0`                                                  | Hot reloader (`1`/`true` to enable)      |
+| `FINANCE_DATA_DIR`     | `D:\SynologyDrive\Finance\data\datahub\target`       | Directory of the cashflow target CSVs    |
+| `FINANCE_TRANSFORM_DIR`| `D:\SynologyDrive\Finance\data\datahub\transform`    | Directory of the portfolio value CSV     |
+
+> Both apps default to port `8050`, so run only one at a time — or set
+> `DASH_PORT` on the interactive dashboard to serve them side by side.
+
 ## Input data schemata
 - finanzübersicht.ods (libreOffice calc)
     - Sheet: 3.2 Portfolio langfristig Transactions
