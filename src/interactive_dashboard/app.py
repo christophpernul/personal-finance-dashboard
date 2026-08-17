@@ -135,6 +135,63 @@ def _kpi(label_id: str, value_id: str, label_text: str) -> html.Div:
     )
 
 
+def _txn_card(kind: str) -> html.Div:
+    """Table listing individual transactions for a clicked category."""
+    return _card(
+        [
+            html.Div(
+                "Click a category bar above to list its transactions",
+                id=f"{kind}-txn-title",
+                style={
+                    "color": C["text"],
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                    "marginBottom": "10px",
+                },
+            ),
+            dash_table.DataTable(
+                id=f"{kind}-txn-table",
+                columns=[
+                    {"name": "Date", "id": "date"},
+                    {"name": "Tag", "id": "tag"},
+                    {
+                        "name": "Amount",
+                        "id": "amount",
+                        "type": "numeric",
+                        "format": _MONEY,
+                    },
+                ],
+                data=[],
+                sort_action="native",
+                page_size=15,
+                style_as_list_view=True,
+                style_table={"overflowX": "auto"},
+                style_header={
+                    "backgroundColor": C["background"],
+                    "color": C["text"],
+                    "fontWeight": "600",
+                    "border": "none",
+                    "borderBottom": f"2px solid {C['grid']}",
+                },
+                style_cell={
+                    "backgroundColor": C["panel"],
+                    "color": C["text"],
+                    "border": "none",
+                    "borderBottom": f"1px solid {C['grid']}",
+                    "padding": "8px 10px",
+                    "fontFamily": "Segoe UI, Arial, sans-serif",
+                    "fontSize": "13px",
+                    "textAlign": "right",
+                },
+                style_cell_conditional=[
+                    {"if": {"column_id": c}, "textAlign": "left"}
+                    for c in ("date", "tag")
+                ],
+            ),
+        ],
+    )
+
+
 def _preset_button(kind: str, preset: str, text: str) -> html.Button:
     return html.Button(
         text,
@@ -266,6 +323,7 @@ def build_tab(tab: dict) -> dcc.Tab:
             style={"display": "flex", "flexWrap": "wrap"},
         )
         body.append(detail_row)
+        body.append(_txn_card(kind))
 
     return _tab_shell(label, kind, body)
 
@@ -541,6 +599,57 @@ def _register_callbacks() -> None:
                     _range_label(rng),
                 )
 
+            # Category bar click (monthly breakdown or period average) -> the
+            # list of transactions behind that category, scoped accordingly.
+            @app.callback(
+                Output(f"{kind}-txn-title", "children"),
+                Output(f"{kind}-txn-table", "data"),
+                Input(f"{kind}-range", "value"),
+                Input(f"{kind}-monthly-graph", "clickData"),
+                Input(f"{kind}-breakdown-graph", "clickData"),
+                Input(f"{kind}-avgcat-graph", "clickData"),
+                prevent_initial_call=False,
+            )
+            def _update_txns(rng, month_click, bd_click, avg_click, kind=kind):
+                placeholder = (
+                    "Click a category bar above to list its transactions"
+                )
+                start, end = _clamp_range(rng)
+                sub = DATA.slice_months(MONTHS[start], MONTHS[end])
+                sub_months = sub.months
+                if not sub_months:
+                    return placeholder, []
+
+                trigger = callback_context.triggered_id
+                bd_id = f"{kind}-breakdown-graph"
+                avg_id = f"{kind}-avgcat-graph"
+
+                if trigger == avg_id and avg_click:
+                    category = avg_click["points"][0]["y"]
+                    txns = sub.transactions(kind, category)
+                    scope = _range_label(rng)
+                elif trigger == bd_id and bd_click:
+                    category = bd_click["points"][0]["y"]
+                    month = _selected_month(sub_months, month_click)
+                    txns = sub.transactions(kind, category, month=month)
+                    scope = _month_label(month)
+                else:
+                    # Range/month change (or startup): clear stale selection.
+                    return placeholder, []
+
+                title = f"{category} — {scope}  ·  {len(txns)} transactions"
+                data = [
+                    {
+                        "date": d.strftime("%Y-%m-%d"),
+                        "tag": t,
+                        "amount": a,
+                    }
+                    for d, t, a in zip(
+                        txns["date"], txns["tag"], txns["amount"]
+                    )
+                ]
+                return title, data
+
         else:
 
             @app.callback(
@@ -578,6 +687,26 @@ def _clamp_range(rng) -> tuple[int, int]:
     if start > end:
         start, end = end, start
     return start, end
+
+
+def _selected_month(sub_months, click_data):
+    """Resolve the highlighted month from a monthly-bar click, regardless of
+    which component triggered the current callback (defaults to last month)."""
+    if not sub_months:
+        return None
+    selected = sub_months[-1]
+    if click_data:
+        try:
+            clicked = (
+                pd.Timestamp(click_data["points"][0]["x"])
+                .to_period("M")
+                .to_timestamp()
+            )
+            if clicked in sub_months:
+                selected = clicked
+        except (KeyError, IndexError, ValueError):
+            pass
+    return selected
 
 
 def _sub_and_selected(rng, click_data, graph_id):
