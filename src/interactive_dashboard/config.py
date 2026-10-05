@@ -39,6 +39,8 @@ COLORS = {
     "income": "#2ec4b6",  # teal/green bars
     "positive": "#2ecc71",  # cashflow surplus
     "negative": "#e74c3c",  # cashflow deficit
+    "net": "#a78bfa",  # cashflow series next to income/expense bars
+    "reference": "#8b95a1",  # comparison baseline (past year) bars
     "average": "#29b6f6",  # average reference line (cyan)
     "selected": "#f1c40f",  # highlighted / clicked bar
 }
