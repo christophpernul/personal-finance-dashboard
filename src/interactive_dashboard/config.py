@@ -52,6 +52,7 @@ COLORS = {
 # separate. The mapping is fixed, so a category keeps the same color across every
 # chart.
 import colorsys
+import zlib
 
 # group name -> (base hue color, [member categories in shade order])
 CATEGORY_GROUPS: dict[str, tuple[str, list[str]]] = {
@@ -146,8 +147,9 @@ def category_color(name: str) -> str:
     """Fixed color for a category; unknown categories get a stable fallback hue."""
     if name in CATEGORY_COLORS:
         return CATEGORY_COLORS[name]
-    # Deterministic fallback so an unmapped category is still stable across charts.
-    idx = abs(hash(name)) % len(_FALLBACK_HUES)
+    # Deterministic fallback so an unmapped category is still stable across
+    # charts and restarts (the built-in hash() of a str is salted per process).
+    idx = zlib.crc32(name.encode("utf-8")) % len(_FALLBACK_HUES)
     color = _shades(_FALLBACK_HUES[idx], 1)[0]
     CATEGORY_COLORS[name] = color
     return color
