@@ -58,6 +58,22 @@ def _pivot_cats(txns: pd.DataFrame) -> pd.DataFrame:
     return piv.sort_index()
 
 
+def last_month_end(today: pd.Timestamp | None = None) -> pd.Timestamp:
+    """Last day of the month before ``today`` (default: now).
+
+    Year-to-date views stop there: the running month already holds some
+    transactions, but its expenses are only complete once the month is over.
+    """
+    today = pd.Timestamp.today() if today is None else pd.Timestamp(today)
+    return today.normalize().replace(day=1) - pd.Timedelta(days=1)
+
+
+def _within_ytd(dates: pd.Series, cutoff: pd.Timestamp) -> pd.Series:
+    """True for dates from January through ``cutoff``'s month, in whatever
+    year (the cutoff is always a month end)."""
+    return dates.dt.month <= cutoff.month
+
+
 @dataclass
 class FinanceData:
     """In-memory, ready-to-slice view of the cashflow data.
@@ -71,6 +87,7 @@ class FinanceData:
     monthly: pd.DataFrame  # month-indexed: total_expense, total_income, net
     expense_txns: pd.DataFrame  # tidy: date, month, tag, category, amount (>0)
     income_txns: pd.DataFrame  # tidy: date, month, tag, category, amount (>0)
+    ytd_cutoff: pd.Timestamp  # last day counted in the yearly views
 
     # -- convenience ----------------------------------------------------------
     @property
@@ -123,6 +140,7 @@ class FinanceData:
             monthly=self.monthly.loc[m],
             expense_txns=self.expense_txns.loc[et],
             income_txns=self.income_txns.loc[it],
+            ytd_cutoff=self.ytd_cutoff,
         )
 
     def category_breakdown(self, kind: str, month: pd.Timestamp) -> pd.Series:
@@ -160,9 +178,70 @@ class FinanceData:
         sel = sel.sort_values("date", ascending=False)
         return sel.loc[:, ["date", "tag", "amount"]]
 
+    # -- calendar years / year-to-date ---------------------------------------
+    @property
+    def years(self) -> list[int]:
+        """Calendar years up to and including the one of ``ytd_cutoff``."""
+        last = self.ytd_cutoff.year
+        return sorted({m.year for m in self.months if m.year <= last} | {last})
 
-def load_finance_data(data_dir: Path | None = None) -> FinanceData:
-    """Load transactions and derive monthly aggregates from ``data_dir``."""
+    def yearly_categories(self, kind: str, ytd: bool = False) -> pd.DataFrame:
+        """year x category matrix of summed amounts.
+
+        Transactions after ``ytd_cutoff`` are ignored, so the running year
+        always ends there. With ``ytd`` every year is cut at that same month,
+        so past years are compared like for like with the running year.
+        """
+        txns = self._txns(kind)
+        txns = txns[txns["date"] <= self.ytd_cutoff]
+        if ytd:
+            txns = txns[_within_ytd(txns["date"], self.ytd_cutoff)]
+        if txns.empty:
+            return pd.DataFrame(index=pd.Index(self.years, name="year"))
+        piv = txns.assign(year=txns["date"].dt.year).pivot_table(
+            index="year",
+            columns="category",
+            values="amount",
+            aggfunc="sum",
+            fill_value=0.0,
+        )
+        return piv.reindex(self.years, fill_value=0.0)
+
+    def yearly_totals(self, ytd: bool = False) -> pd.DataFrame:
+        """Year-indexed ``total_expense``, ``total_income`` and signed ``net``."""
+        yearly = pd.DataFrame(
+            {
+                "total_expense": self.yearly_categories("expenses", ytd).sum(
+                    axis=1
+                ),
+                "total_income": self.yearly_categories("income", ytd).sum(
+                    axis=1
+                ),
+            }
+        )
+        yearly["net"] = yearly["total_income"] - yearly["total_expense"]
+        return yearly
+
+    def category_year_totals(
+        self, kind: str, year: int, ytd: bool = False
+    ) -> pd.Series:
+        """Per-category amounts for one calendar year (optionally cut at the
+        year-to-date cutoff), zeros dropped."""
+        cats = self.yearly_categories(kind, ytd)
+        if year not in cats.index:
+            return pd.Series(dtype=float)
+        row = cats.loc[year]
+        return row[row > 0]
+
+
+def load_finance_data(
+    data_dir: Path | None = None, today: pd.Timestamp | None = None
+) -> FinanceData:
+    """Load transactions and derive monthly aggregates from ``data_dir``.
+
+    ``today`` (default: now) fixes the year-to-date cutoff, see
+    :func:`last_month_end`.
+    """
     data_dir = Path(data_dir) if data_dir is not None else config.DATA_DIR
     expenses_path = data_dir / config.EXPENSES_FILE
     incomes_path = data_dir / config.INCOMES_FILE
@@ -207,4 +286,5 @@ def load_finance_data(data_dir: Path | None = None) -> FinanceData:
         monthly=monthly,
         expense_txns=expense_txns,
         income_txns=income_txns,
+        ytd_cutoff=last_month_end(today),
     )

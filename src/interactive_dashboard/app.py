@@ -5,9 +5,13 @@ Tabs: Expenses, Income, Cashflow. Each tab lets you freely pick a month range
 Expenses/Income — drills into per-category spend when you click a month, plus the
 average spend per category over the selected period.
 
+The Yearly tab aggregates per calendar year: income/expenses/cashflow totals
+(full year or year-to-date) and a per-category comparison of the expenses of
+any two years.
+
 Run with::
 
-    python -m src.dashboard.interactive_dashboard.app
+    python -m src.interactive_dashboard.app
 """
 from __future__ import annotations
 
@@ -35,11 +39,21 @@ DATA: FinanceData = load_finance_data()
 MONTHS: list[pd.Timestamp] = DATA.months
 N_MONTHS = len(MONTHS)
 
+# Year-to-date views run up to the end of last month (the running month is
+# incomplete). The year that day falls in is the "current" one; it only counts
+# as a complete year while the cutoff sits on Dec 31, i.e. during January.
+YTD_CUTOFF: pd.Timestamp = DATA.ytd_cutoff
+CURRENT_YEAR = YTD_CUTOFF.year
+PAST_YEARS: list[int] = [y for y in DATA.years if y < CURRENT_YEAR]
+YEAR_COMPLETE = YTD_CUTOFF.month == 12
+YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
+
 PORTFOLIO: PortfolioData = load_portfolio_data()
 
 # Tab registry — add a dict here to introduce a new tab later.
 # ``layout`` selects how the tab is rendered: "series" = monthly bars + range
-# slider; "portfolio" = positions table + aggregate KPI cards.
+# slider; "yearly" = calendar-year totals + category comparisons;
+# "portfolio" = positions table + aggregate KPI cards.
 TABS = [
     {
         "kind": "expenses",
@@ -59,6 +73,7 @@ TABS = [
         "layout": "series",
         "has_categories": False,
     },
+    {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
     {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
 ]
 KINDS = [t["kind"] for t in TABS]
@@ -236,6 +251,8 @@ def _tab_shell(label: str, kind: str, body: list) -> dcc.Tab:
 def build_tab(tab: dict) -> dcc.Tab:
     if tab["layout"] == "portfolio":
         return build_portfolio_tab(tab)
+    if tab["layout"] == "yearly":
+        return build_yearly_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -326,6 +343,258 @@ def build_tab(tab: dict) -> dcc.Tab:
         body.append(_txn_card(kind))
 
     return _tab_shell(label, kind, body)
+
+
+# ---------------------------------------------------------------------------
+# Yearly tab (calendar-year totals, yearly category averages, YTD comparison)
+# ---------------------------------------------------------------------------
+def _section_title(text: str) -> html.Div:
+    return html.Div(
+        text,
+        style={
+            "color": C["text"],
+            "fontSize": "17px",
+            "fontWeight": "600",
+            "marginBottom": "12px",
+        },
+    )
+
+
+def _control_label(text: str, width: str | None = None) -> html.Span:
+    """Muted caption in front of a control; a ``width`` lines up stacked rows."""
+    style = {"color": C["text_muted"], "marginRight": "10px"}
+    if width:
+        style.update(display="inline-block", width=width, marginRight="0")
+    return html.Span(text, style=style)
+
+
+def _radio(component_id: str, options: list[dict], value) -> dcc.RadioItems:
+    return dcc.RadioItems(
+        id=component_id,
+        options=options,
+        value=value,
+        inline=True,
+        style={"display": "inline-block", "color": C["text"]},
+        labelStyle={"marginRight": "16px", "cursor": "pointer"},
+        inputStyle={"marginRight": "6px"},
+    )
+
+
+def _ytd_kpi(label: str, current: float, previous: float | None) -> html.Div:
+    """Year-to-date value with its change against the same period last year."""
+    children = [
+        html.Div(label, style={"color": C["text_muted"], "fontSize": "15px"}),
+        html.Div(
+            f"{current:,.0f} €",
+            style={
+                "color": C["text"],
+                "fontSize": "30px",
+                "fontWeight": "600",
+                "marginTop": "4px",
+            },
+        ),
+    ]
+    if previous is not None:
+        change = f"{current - previous:+,.0f} €"
+        # A percentage of a negative base (cashflow deficit) reads backwards.
+        if previous > 0:
+            pct = (current - previous) / previous * 100
+            change += f" ({pct:+.1f} %)"
+        children.append(
+            html.Div(
+                f"{change} vs. {PAST_YEARS[-1]}, {YTD_SPAN}",
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "13px",
+                    "marginTop": "2px",
+                },
+            )
+        )
+    return _card(children, flex="1", minWidth="230px")
+
+
+def _compare_stat(
+    label: str,
+    value: str,
+    *,
+    swatch: str | None = None,
+    value_color: str | None = None,
+    note: str | None = None,
+    first: bool = False,
+) -> html.Div:
+    """One headline figure of the year comparison: muted label over a large
+    value. ``swatch`` repeats the bar color the figure belongs to; ``note``
+    trails the value in smaller type."""
+    value_children = [value]
+    if note:
+        value_children.append(
+            html.Span(
+                note,
+                style={
+                    "fontSize": "15px",
+                    "fontWeight": "400",
+                    "marginLeft": "8px",
+                },
+            )
+        )
+    label_children = [label]
+    if swatch:
+        label_children.insert(
+            0,
+            html.Span(
+                style={
+                    "display": "inline-block",
+                    "width": "10px",
+                    "height": "10px",
+                    "borderRadius": "2px",
+                    "backgroundColor": swatch,
+                    "marginRight": "8px",
+                }
+            ),
+        )
+    return html.Div(
+        [
+            html.Div(
+                label_children,
+                style={"color": C["text_muted"], "fontSize": "13px"},
+            ),
+            html.Div(
+                value_children,
+                style={
+                    "color": value_color or C["text"],
+                    "fontSize": "26px",
+                    "fontWeight": "600",
+                    "marginTop": "4px",
+                    "whiteSpace": "nowrap",
+                },
+            ),
+        ],
+        style={
+            "padding": "2px 22px",
+            "borderLeft": "none" if first else f"1px solid {C['grid']}",
+        },
+    )
+
+
+def _graph_pair(left_id: str, right_id: str) -> html.Div:
+    return html.Div(
+        [
+            html.Div(
+                dcc.Graph(id=graph_id),
+                style={"flex": "1", "minWidth": "380px"},
+            )
+            for graph_id in (left_id, right_id)
+        ],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+
+
+def build_yearly_tab(tab: dict) -> dcc.Tab:
+    ytd = DATA.yearly_totals(ytd=True)
+    now = ytd.loc[CURRENT_YEAR]
+    prev = ytd.loc[PAST_YEARS[-1]] if PAST_YEARS else None
+    kpi_row = html.Div(
+        [
+            _ytd_kpi(
+                f"{label} {CURRENT_YEAR} year to date",
+                now[column],
+                None if prev is None else prev[column],
+            )
+            for label, column in (
+                ("Income", "total_income"),
+                ("Expenses", "total_expense"),
+                ("Cashflow", "net"),
+            )
+        ],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+
+    totals_card = _card(
+        [
+            _section_title("Income, expenses and cashflow per calendar year"),
+            _control_label("Show:"),
+            _radio(
+                "yearly-totals-mode",
+                [
+                    {"label": "Full years", "value": "full"},
+                    {
+                        "label": f"Year to date ({YTD_SPAN} of every year)",
+                        "value": "ytd",
+                    },
+                ],
+                "full",
+            ),
+            dcc.Graph(id="yearly-totals-graph"),
+        ]
+    )
+    body = [kpi_row, totals_card]
+    if not PAST_YEARS:
+        return _tab_shell(tab["label"], tab["kind"], body)
+
+    year_options = [{"label": str(y), "value": y} for y in DATA.years]
+    compare_controls = html.Div(
+        [
+            _section_title("Expenses by category: compare two years"),
+            html.Div(
+                [
+                    _control_label("Year:", width="110px"),
+                    _radio("yearly-compare-year", year_options, CURRENT_YEAR),
+                ],
+                style={"marginBottom": "8px"},
+            ),
+            html.Div(
+                [
+                    _control_label("Compare with:", width="110px"),
+                    _radio(
+                        "yearly-compare-baseline", year_options, PAST_YEARS[-1]
+                    ),
+                ],
+                style={"marginBottom": "8px"},
+            ),
+            html.Div(
+                [
+                    _control_label("Period:", width="110px"),
+                    _radio(
+                        "yearly-compare-basis",
+                        [
+                            {
+                                "label": f"Year to date ({YTD_SPAN})",
+                                "value": "ytd",
+                            },
+                            {"label": "Full year", "value": "full"},
+                        ],
+                        "ytd",
+                    ),
+                ],
+            ),
+        ]
+    )
+    compare_card = _card(
+        [
+            # Controls on the left, the headline totals on the right.
+            html.Div(
+                [
+                    compare_controls,
+                    html.Div(
+                        id="yearly-compare-summary",
+                        style={"display": "flex", "flexWrap": "wrap"},
+                    ),
+                ],
+                style={
+                    "display": "flex",
+                    "flexWrap": "wrap",
+                    "justifyContent": "space-between",
+                    "alignItems": "center",
+                    "gap": "16px 24px",
+                    "marginBottom": "14px",
+                },
+            ),
+            _graph_pair("yearly-compare-graph", "yearly-delta-graph"),
+        ]
+    )
+
+    body.append(compare_card)
+    return _tab_shell(tab["label"], tab["kind"], body)
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +816,8 @@ app.layout = build_layout()
 def _register_callbacks() -> None:
     for tab in TABS:
         if tab["layout"] != "series":
-            continue  # portfolio tab is static — no callbacks
+            # portfolio tab is static; the yearly tab registers its own
+            continue
         kind = tab["kind"]
         has_cats = tab["has_categories"]
 
@@ -673,6 +943,78 @@ def _register_callbacks() -> None:
                 )
 
 
+def _register_yearly_callbacks() -> None:
+    @app.callback(
+        Output("yearly-totals-graph", "figure"),
+        Input("yearly-totals-mode", "value"),
+    )
+    def _update_totals(mode):
+        if mode == "ytd":
+            return figures.yearly_totals_figure(DATA.yearly_totals(ytd=True))
+        return figures.yearly_totals_figure(
+            DATA.yearly_totals(),
+            partial_year=None if YEAR_COMPLETE else CURRENT_YEAR,
+        )
+
+    if not PAST_YEARS:
+        return  # nothing to compare against yet
+
+    @app.callback(
+        Output("yearly-compare-graph", "figure"),
+        Output("yearly-delta-graph", "figure"),
+        Output("yearly-compare-summary", "children"),
+        Input("yearly-compare-year", "value"),
+        Input("yearly-compare-baseline", "value"),
+        Input("yearly-compare-basis", "value"),
+    )
+    def _update_comparison(year, baseline, basis):
+        same_period = basis != "full"
+
+        def _label(y: int) -> str:
+            if same_period:
+                return f"{y} ({YTD_SPAN})"
+            # The running year has no full year yet: it stops at the cutoff.
+            if y == CURRENT_YEAR and not YEAR_COMPLETE:
+                return f"{y} YTD"
+            return f"{y} full year"
+
+        current = DATA.category_year_totals("expenses", year, ytd=same_period)
+        past = DATA.category_year_totals("expenses", baseline, ytd=same_period)
+        current_label, past_label = _label(year), _label(baseline)
+
+        change = current.sum() - past.sum()
+        change_pct = (
+            f"{change / past.sum() * 100:+.1f} %" if past.sum() else None
+        )
+        summary = [
+            _compare_stat(
+                current_label,
+                f"{current.sum():,.0f} €",
+                swatch=C["expense"],
+                first=True,
+            ),
+            _compare_stat(
+                past_label, f"{past.sum():,.0f} €", swatch=C["reference"]
+            ),
+            # Spending less than in the baseline year is the good direction.
+            _compare_stat(
+                "Change",
+                f"{change:+,.0f} €",
+                value_color=C["positive"] if change <= 0 else C["negative"],
+                note=change_pct,
+            ),
+        ]
+        return (
+            figures.category_comparison_figure(
+                current, past, current_label, past_label, "expenses"
+            ),
+            figures.category_delta_figure(
+                current, past, past_label, "expenses"
+            ),
+            summary,
+        )
+
+
 def _range_label(rng) -> str:
     start, end = _clamp_range(rng)
     return f"{_month_label(MONTHS[start])} – {_month_label(MONTHS[end])}"
@@ -734,6 +1076,7 @@ def _sub_and_selected(rng, click_data, graph_id):
 
 
 _register_callbacks()
+_register_yearly_callbacks()
 
 
 def main() -> None:
