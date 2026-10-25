@@ -1,6 +1,9 @@
 """Interactive personal-finance dashboard (Plotly Dash).
 
-Tabs: Expenses, Income, Cashflow. Each tab lets you freely pick a month range
+The top-level navigation has two sections: Cashflow (Expenses, Income,
+Cashflow, Yearly and Transactions tabs) and Investment (Portfolio tab).
+
+Expenses, Income, Cashflow: each tab lets you freely pick a month range
 (slider + presets), shows monthly bars with the period average, and — for
 Expenses/Income — drills into per-category spend when you click a month, plus the
 average spend per category over the selected period.
@@ -57,39 +60,52 @@ YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 
 PORTFOLIO: PortfolioData = load_portfolio_data()
 
-# Tab registry — add a dict here to introduce a new tab later.
-# ``layout`` selects how the tab is rendered: "series" = monthly bars + range
-# slider; "yearly" = calendar-year totals + category comparisons;
+# Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
+# later. Each section is a top-level navigation item holding its own row of
+# tabs. ``layout`` selects how a tab is rendered: "series" = monthly bars +
+# range slider; "yearly" = calendar-year totals + category comparisons;
 # "portfolio" = positions table + aggregate KPI cards; "transactions" = table
 # of all transactions.
-TABS = [
+SECTIONS = [
     {
-        "kind": "expenses",
-        "label": "Expenses",
-        "layout": "series",
-        "has_categories": True,
-    },
-    {
-        "kind": "income",
-        "label": "Income",
-        "layout": "series",
-        "has_categories": True,
-    },
-    {
-        "kind": "cashflow",
+        "key": "cashflow-section",
         "label": "Cashflow",
-        "layout": "series",
-        "has_categories": False,
+        "tabs": [
+            {
+                "kind": "expenses",
+                "label": "Expenses",
+                "layout": "series",
+                "has_categories": True,
+            },
+            {
+                "kind": "income",
+                "label": "Income",
+                "layout": "series",
+                "has_categories": True,
+            },
+            {
+                "kind": "cashflow",
+                "label": "Cashflow",
+                "layout": "series",
+                "has_categories": False,
+            },
+            {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
+            {
+                "kind": "transactions",
+                "label": "Transactions",
+                "layout": "transactions",
+            },
+        ],
     },
-    {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
     {
-        "kind": "transactions",
-        "label": "Transactions",
-        "layout": "transactions",
+        "key": "investment-section",
+        "label": "Investment",
+        "tabs": [
+            {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
+        ],
     },
-    {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
 ]
-KINDS = [t["kind"] for t in TABS]
+TABS = [tab for section in SECTIONS for tab in section["tabs"]]
 
 
 # ---------------------------------------------------------------------------
@@ -1295,6 +1311,39 @@ def build_transactions_tab(tab: dict) -> dcc.Tab:
     return _tab_shell(tab["label"], tab["kind"], [table])
 
 
+def build_section(section: dict) -> dcc.Tab:
+    """Top-level navigation item holding the row of tabs of one section."""
+    tabs = section["tabs"]
+    return dcc.Tab(
+        label=section["label"],
+        value=section["key"],
+        children=dcc.Tabs(
+            id=f"{section['key']}-tabs",
+            value=tabs[0]["kind"],
+            children=[build_tab(t) for t in tabs],
+            style={"marginTop": "10px"},
+        ),
+        style={
+            "backgroundColor": C["background"],
+            "color": C["text_muted"],
+            "border": "none",
+            "borderBottom": f"2px solid {C['grid']}",
+            "fontSize": "17px",
+            "fontWeight": "600",
+            "padding": "10px 20px",
+        },
+        selected_style={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "border": "none",
+            "borderBottom": f"3px solid {C['average']}",
+            "fontSize": "17px",
+            "fontWeight": "600",
+            "padding": "10px 20px",
+        },
+    )
+
+
 def build_layout() -> html.Div:
     return html.Div(
         [
@@ -1304,9 +1353,9 @@ def build_layout() -> html.Div:
             ),
             dcc.Tabs(
                 id="main-tabs",
-                value=KINDS[0],
-                children=[build_tab(t) for t in TABS],
-                style={"marginTop": "8px"},
+                value=SECTIONS[0]["key"],
+                children=[build_section(s) for s in SECTIONS],
+                style={"marginTop": "8px", "maxWidth": "480px"},
             ),
         ],
         style={
