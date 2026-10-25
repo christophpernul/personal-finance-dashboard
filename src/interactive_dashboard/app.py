@@ -926,7 +926,7 @@ _PORTFOLIO_TABLE_COLUMNS = [
     {"name": "Name", "id": "name"},
     {"name": "Symbol", "id": "symbol"},
     {"name": "ISIN", "id": "isin"},
-    {"name": "Exchange", "id": "exchange"},
+    {"name": "Depot / Exchange", "id": "exchange"},
     {"name": "Ccy", "id": "currency"},
     {
         "name": "Quantity",
@@ -1086,13 +1086,13 @@ _PORTFOLIO_RECORDS = _portfolio_records()
 
 _PORTFOLIO_DROPDOWNS = [
     _DropdownSpec("group", "Group", "190px"),
-    _DropdownSpec("exchange", "Exchange", "220px"),
+    _DropdownSpec("exchange", "Depot / Exchange", "220px"),
     _DropdownSpec("name", "Name", "380px", searchable=True),
 ]
 
 
 def _portfolio_controls() -> html.Div:
-    """Group/exchange/name dropdowns, gainers/losers filter and reset button."""
+    """Group/depot/name dropdowns, gainers/losers filter and reset button."""
     performance = _labelled_control(
         "Show",
         _radio(

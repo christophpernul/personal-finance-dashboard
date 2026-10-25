@@ -8,9 +8,8 @@ its current price/value and the amount invested:
 - ``transform_crypto__portfolio_value.csv`` — coins (and EUR cash) per
   exchange or wallet they are held on.
 
-Every position gets an ``exchange``: for crypto the exchange/wallet holding it,
-for ETFs and stocks the stock exchange of its ticker symbol, and an
-``annual_return``: its money-weighted average annual return (see returns.py).
+Every position gets an ``exchange``: where it is held — the depot (broker) for
+ETFs and stocks, the exchange/wallet for crypto — and an ``annual_return``: its money-weighted average annual return (see returns.py).
 
 Note: the snapshot date can differ per group (e.g. ETFs current, stocks from an
 earlier scrape), so the ``as_of`` date is kept and surfaced in the UI.
@@ -31,21 +30,14 @@ GROUP_LABELS = {"ETF": "ETFs", "Aktie": "Stocks"}
 CRYPTO_GROUP = "Crypto"
 GROUP_ORDER = ["ETFs", "Stocks", CRYPTO_GROUP]
 
-# Ticker suffix -> stock exchange (same names as ``exchange_name`` in the ETF
-# master data). Tickers without a suffix are US listings.
-EXCHANGE_BY_SUFFIX = {
-    "DE": "XETRA",
-    "L": "LSE",
-    "AS": "Amsterdam",
-    "PA": "Paris",
-    "SG": "Stuttgart",
-    "MI": "Milan",
-    "SW": "Swiss",
+# Depot / exchange / wallet ids whose display name isn't just capitalized.
+EXCHANGE_LABELS = {
+    "traderepublic": "Trade Republic",
+    "comdirect": "comdirect",
+    "flatex": "flatex",
+    "kucoin": "KuCoin",
+    "myetherwallet": "MyEtherWallet",
 }
-US_EXCHANGE = "US"
-
-# Crypto exchange/wallet ids whose display name isn't just capitalized.
-CRYPTO_EXCHANGE_LABELS = {"kucoin": "KuCoin", "myetherwallet": "MyEtherWallet"}
 
 # Raw column -> tidy column name.
 _RENAME = {
@@ -146,12 +138,15 @@ def _read_csv(path: Path) -> pd.DataFrame:
     )
 
 
-def _stock_exchange(symbol: str) -> str:
-    """Stock exchange of a ticker like ``EUEA.AS`` (no suffix = US)."""
-    if not isinstance(symbol, str) or "." not in symbol:
-        return US_EXCHANGE
-    suffix = symbol.rsplit(".", 1)[1]
-    return EXCHANGE_BY_SUFFIX.get(suffix, suffix)
+def _exchange_label(raw: str) -> str:
+    """Display name of a depot/exchange id; a position held in several depots
+    comes as a comma-separated list (largest first)."""
+    if not isinstance(raw, str):
+        return ""
+    return ", ".join(
+        EXCHANGE_LABELS.get(part, part.capitalize())
+        for part in raw.split(", ")
+    )
 
 
 def _load_securities(path: Path) -> pd.DataFrame:
@@ -159,7 +154,7 @@ def _load_securities(path: Path) -> pd.DataFrame:
     df["group"] = (
         df["security_type"].map(GROUP_LABELS).fillna(df["security_type"])
     )
-    df["exchange"] = df["symbol"].map(_stock_exchange)
+    df["exchange"] = df["depot"].map(_exchange_label)
     # Exchange quotes are in cents; drop the float noise of the price scrape.
     df["price"] = pd.to_numeric(df["price"], errors="coerce").round(2)
     return df
@@ -169,9 +164,7 @@ def _load_crypto(path: Path) -> pd.DataFrame:
     df = _read_csv(path).rename(columns=_CRYPTO_RENAME)
     df["group"] = CRYPTO_GROUP
     df["isin"] = ""
-    df["exchange"] = df["exchange"].map(
-        lambda e: CRYPTO_EXCHANGE_LABELS.get(e, e.capitalize())
-    )
+    df["exchange"] = df["exchange"].map(_exchange_label)
     return df
 
 
