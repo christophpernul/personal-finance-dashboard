@@ -24,6 +24,11 @@ TRANSFORM_DIR = Path(
 )
 PORTFOLIO_FILE = "transform_portfolio__value.csv"
 CRYPTO_PORTFOLIO_FILE = "transform_crypto__portfolio_value.csv"
+# Dated cashflows behind the money-weighted annual returns.
+PORTFOLIO_CASHFLOWS_FILE = "transform_portfolio__cashflows.csv"
+CRYPTO_LEDGER_FILE = "transform_crypto__ledger.csv"
+CRYPTO_TRADES_FILE = "transform_crypto__trades.csv"
+CRYPTO_COINS_FILE = "transform_crypto__coins.csv"
 
 CSV_SEP = ";"
 CSV_DECIMAL = ","

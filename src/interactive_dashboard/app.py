@@ -949,8 +949,19 @@ _PORTFOLIO_TABLE_COLUMNS = [
         "type": "numeric",
         "format": _PERCENT,
     },
+    {
+        "name": "Return p.a.",
+        "id": "annual_return",
+        "type": "numeric",
+        "format": _PERCENT,
+    },
     {"name": "As of", "id": "as_of"},
 ]
+_ANNUAL_RETURN_HINT = (
+    "Money-weighted average annual return (XIRR): accounts for when each buy, "
+    "sale and dividend happened, valuing what's still held at today's price. "
+    "Blank for coins bought mostly by swapping other coins (no EUR price)."
+)
 
 
 def _portfolio_group_card(
@@ -1000,9 +1011,37 @@ def _portfolio_group_card(
                     "marginTop": "2px",
                 },
             ),
+            _annual_return_line(row["annual_return"]),
         ],
         flex="1",
         minWidth="230px",
+    )
+
+
+def _annual_return_line(annual_return: float) -> html.Div:
+    """'+13.4 % per year' with the XIRR explained on hover."""
+    if pd.isna(annual_return):
+        text, color = "—", C["text_muted"]
+    else:
+        text = f"{annual_return:+.1f} %"
+        color = C["positive"] if annual_return >= 0 else C["negative"]
+    return html.Div(
+        [
+            html.Span(
+                text,
+                style={
+                    "color": color,
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                },
+            ),
+            html.Span(
+                " per year",
+                style={"color": C["text_muted"], "fontSize": "13px"},
+            ),
+        ],
+        title=_ANNUAL_RETURN_HINT,
+        style={"marginTop": "2px", "cursor": "help"},
     )
 
 
@@ -1157,28 +1196,15 @@ def _portfolio_table() -> dash_table.DataTable:
         ],
         style_data_conditional=[
             {
-                "if": {"filter_query": "{gain} < 0", "column_id": "gain"},
-                "color": C["negative"],
-            },
-            {
-                "if": {"filter_query": "{gain} >= 0", "column_id": "gain"},
-                "color": C["positive"],
-            },
-            {
-                "if": {
-                    "filter_query": "{gain_pct} < 0",
-                    "column_id": "gain_pct",
-                },
-                "color": C["negative"],
-            },
-            {
-                "if": {
-                    "filter_query": "{gain_pct} >= 0",
-                    "column_id": "gain_pct",
-                },
-                "color": C["positive"],
-            },
+                "if": {"filter_query": f"{{{col}}} {op} 0", "column_id": col},
+                "color": color,
+            }
+            for col in ("gain", "gain_pct", "annual_return")
+            for op, color in (("<", C["negative"]), (">=", C["positive"]))
         ],
+        tooltip_header={"annual_return": _ANNUAL_RETURN_HINT},
+        tooltip_delay=300,
+        tooltip_duration=None,
     )
 
 

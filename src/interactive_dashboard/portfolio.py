@@ -9,19 +9,22 @@ its current price/value and the amount invested:
   exchange or wallet they are held on.
 
 Every position gets an ``exchange``: for crypto the exchange/wallet holding it,
-for ETFs and stocks the stock exchange of its ticker symbol.
+for ETFs and stocks the stock exchange of its ticker symbol, and an
+``annual_return``: its money-weighted average annual return (see returns.py).
 
 Note: the snapshot date can differ per group (e.g. ETFs current, stocks from an
 earlier scrape), so the ``as_of`` date is kept and surfaced in the UI.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
 from . import config
+from .returns import Returns, compute_returns
 
 # Map the raw security_type to a clean, English group label.
 GROUP_LABELS = {"ETF": "ETFs", "Aktie": "Stocks"}
@@ -83,6 +86,7 @@ DISPLAY_COLUMNS = [
     "value",
     "gain",
     "gain_pct",
+    "annual_return",
     "as_of",
 ]
 
@@ -92,6 +96,7 @@ _NUMERIC = ["shares", "price", "value", "investment", "gain", "gain_pct"]
 @dataclass
 class PortfolioData:
     positions: pd.DataFrame  # one tidy row per position (see _RENAME/DISPLAY_COLUMNS)
+    returns: Returns  # money-weighted annual returns (see returns.py)
 
     def group_aggregates(self) -> pd.DataFrame:
         """Value/investment/gain totals per group plus an 'All' total row."""
@@ -103,6 +108,7 @@ class PortfolioData:
         agg["gain_pct"] = (
             agg["gain"] / agg["investment"].replace(0, pd.NA)
         ) * 100
+        agg["annual_return"] = agg.index.map(self.returns.by_group)
         agg["n_positions"] = pd.concat(
             [
                 pd.Series({"All": len(self.positions)}),
@@ -191,6 +197,13 @@ def load_portfolio_data(
     for col in _NUMERIC:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # Crypto positions are keyed by coin, ETFs/stocks by ISIN (stocks: name).
+    returns = compute_returns(GROUP_LABELS, CRYPTO_GROUP)
+    asset = df["symbol"].where(df["group"] == CRYPTO_GROUP, df["isin"])
+    df["annual_return"] = [
+        returns.by_asset.get(key, math.nan) for key in zip(df["group"], asset)
+    ]
+
     rank = {grp: i for i, grp in enumerate(GROUP_ORDER)}
     df = (
         df[DISPLAY_COLUMNS]
@@ -202,4 +215,4 @@ def load_portfolio_data(
         .reset_index(drop=True)
     )
 
-    return PortfolioData(positions=df)
+    return PortfolioData(positions=df, returns=returns)
