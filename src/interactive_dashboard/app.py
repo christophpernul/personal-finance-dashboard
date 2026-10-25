@@ -9,11 +9,17 @@ The Yearly tab aggregates per calendar year: income/expenses/cashflow totals
 (full year or year-to-date) and a per-category comparison of the expenses of
 any two years.
 
+The Transactions tab lists every expense and income transaction in one
+sortable, filterable table, with totals of whatever the filters leave over.
+
 Run with::
 
     python -m src.interactive_dashboard.app
 """
 from __future__ import annotations
+
+import calendar
+from typing import Callable, NamedTuple
 
 import pandas as pd
 from dash import (
@@ -25,6 +31,7 @@ from dash import (
     dash_table,
     dcc,
     html,
+    no_update,
 )
 from dash.dash_table.Format import Format, Group, Scheme, Symbol
 
@@ -53,7 +60,8 @@ PORTFOLIO: PortfolioData = load_portfolio_data()
 # Tab registry — add a dict here to introduce a new tab later.
 # ``layout`` selects how the tab is rendered: "series" = monthly bars + range
 # slider; "yearly" = calendar-year totals + category comparisons;
-# "portfolio" = positions table + aggregate KPI cards.
+# "portfolio" = positions table + aggregate KPI cards; "transactions" = table
+# of all transactions.
 TABS = [
     {
         "kind": "expenses",
@@ -74,6 +82,11 @@ TABS = [
         "has_categories": False,
     },
     {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
+    {
+        "kind": "transactions",
+        "label": "Transactions",
+        "layout": "transactions",
+    },
     {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
 ]
 KINDS = [t["kind"] for t in TABS]
@@ -169,6 +182,7 @@ def _txn_card(kind: str) -> html.Div:
                 columns=[
                     {"name": "Date", "id": "date"},
                     {"name": "Tag", "id": "tag"},
+                    {"name": "Comment", "id": "description"},
                     {
                         "name": "Amount",
                         "id": "amount",
@@ -200,7 +214,7 @@ def _txn_card(kind: str) -> html.Div:
                 },
                 style_cell_conditional=[
                     {"if": {"column_id": c}, "textAlign": "left"}
-                    for c in ("date", "tag")
+                    for c in ("date", "tag", "description")
                 ],
             ),
         ],
@@ -253,6 +267,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_portfolio_tab(tab)
     if tab["layout"] == "yearly":
         return build_yearly_tab(tab)
+    if tab["layout"] == "transactions":
+        return build_transactions_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -598,7 +614,266 @@ def build_yearly_tab(tab: dict) -> dcc.Tab:
 
 
 # ---------------------------------------------------------------------------
-# Portfolio tab (static: positions table + aggregate KPI cards)
+# Dropdown filters (shared by the Portfolio and Transactions tables)
+# ---------------------------------------------------------------------------
+class _DropdownSpec(NamedTuple):
+    """A checkbox dropdown listing the distinct values of one column."""
+
+    col: str
+    label: str
+    width: str
+    fmt: Callable = str  # value -> option label
+    searchable: bool = False  # search box above the options (long lists)
+
+
+def _dropdown_options(
+    rows: pd.DataFrame, spec: _DropdownSpec, selected: list | None
+) -> list[dict]:
+    """Distinct values of ``spec.col`` in ``rows`` with their row counts.
+
+    Selected values stay listed (with count 0) even if the other filters no
+    longer leave a row for them, so they can still be deselected.
+    """
+    # Blank values (e.g. transactions without a comment) are not offered.
+    counts = rows[spec.col].replace("", pd.NA).dropna().value_counts()
+    values = sorted(set(counts.index) | set(selected or []))
+    return [
+        {
+            "label": f"{spec.fmt(v)}  ({counts.get(v, 0)})",
+            # numpy scalars -> plain Python for the JSON round trip
+            "value": v.item() if hasattr(v, "item") else v,
+        }
+        for v in values
+    ]
+
+
+def _search_options(
+    options: list[dict], search: str | None, selected: list | None
+) -> list[dict]:
+    """Options whose label contains ``search``; ticked ones always stay."""
+    needle = (search or "").strip().lower()
+    if not needle:
+        return options
+    return [
+        o
+        for o in options
+        if needle in o["label"].lower() or o["value"] in (selected or [])
+    ]
+
+
+def _dropdown_label(spec: _DropdownSpec, selected: list | None) -> str:
+    """Closed-dropdown text: "All" or the ticked values."""
+    if not selected:
+        return "All"
+    return ", ".join(spec.fmt(v) for v in sorted(selected))
+
+
+def _check_dropdown(
+    component_id: str, spec: _DropdownSpec, options: list[dict]
+) -> html.Details:
+    """A dropdown that stays open while ticking several values.
+
+    The checklist itself carries ``component_id`` (``value`` = ticked values,
+    ``options`` = choices); ``{component_id}-label`` shows the selection while
+    closed and ``{component_id}-search`` narrows long option lists.
+    assets/check_dropdown.js closes it on a click outside or on Escape.
+    """
+    menu = [
+        dcc.Checklist(
+            id=component_id,
+            options=options,
+            value=[],
+            className="check-dropdown-list",
+            labelClassName="check-dropdown-option",
+        )
+    ]
+    if spec.searchable:
+        menu.insert(
+            0,
+            dcc.Input(
+                id=f"{component_id}-search",
+                type="text",
+                placeholder="Search…",
+                value="",
+                className="check-dropdown-search",
+            ),
+        )
+    return html.Details(
+        [
+            html.Summary(
+                [
+                    html.Span(
+                        "All",
+                        id=f"{component_id}-label",
+                        className="check-dropdown-label",
+                    ),
+                    html.Span("▾", className="check-dropdown-arrow"),
+                ]
+            ),
+            html.Div(menu, className="check-dropdown-menu"),
+        ],
+        className="check-dropdown",
+    )
+
+
+def _filter_by_dropdowns(
+    df: pd.DataFrame, selections: dict[str, list], skip: str | None = None
+) -> pd.DataFrame:
+    """Rows matching every dropdown selection; ``skip`` ignores that column."""
+    for col, selected in selections.items():
+        if col != skip and selected:
+            df = df[df[col].isin(selected)]
+    return df
+
+
+def _labelled_control(text: str, control, width: str) -> html.Div:
+    return html.Div(
+        [
+            html.Div(
+                text,
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "12px",
+                    "marginBottom": "4px",
+                },
+            ),
+            control,
+        ],
+        style={"width": width, "margin": "0 12px 10px 0"},
+    )
+
+
+def _filter_controls(
+    prefix: str,
+    rows: pd.DataFrame,
+    specs: list[_DropdownSpec],
+    extra: list | None = None,
+    hint: str = "",
+) -> html.Div:
+    """Dropdowns ``{prefix}-dd-<col>``, extra controls and a reset button."""
+    dropdowns = [
+        _labelled_control(
+            spec.label,
+            _check_dropdown(
+                f"{prefix}-dd-{spec.col}",
+                spec,
+                _dropdown_options(rows, spec, []),
+            ),
+            spec.width,
+        )
+        for spec in specs
+    ]
+    reset = html.Button(
+        "Reset filters & sort",
+        id=f"{prefix}-reset",
+        n_clicks=0,
+        style={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "border": f"1px solid {C['grid']}",
+            "borderRadius": "6px",
+            "padding": "6px 14px",
+            "marginBottom": "10px",
+            "cursor": "pointer",
+        },
+    )
+    return html.Div(
+        [
+            html.Div(
+                [*dropdowns, *(extra or []), reset],
+                style={
+                    "display": "flex",
+                    "flexWrap": "wrap",
+                    "alignItems": "flex-end",
+                },
+            ),
+            html.Div(
+                "Tick one or more values per filter; each lists the distinct "
+                "values (with row counts) left by the other filters. Click a "
+                f"column header to sort (asc → desc → off{hint}).",
+                style={"color": C["text_muted"], "fontSize": "12px"},
+            ),
+        ],
+    )
+
+
+def _register_filter_callbacks(
+    prefix: str,
+    specs: list[_DropdownSpec],
+    filter_rows: Callable[..., pd.DataFrame],
+    extra_inputs: dict[str, object] | None = None,
+) -> None:
+    """Wire the dropdowns (+ extra inputs) of ``_filter_controls`` to
+    ``{prefix}-table``.
+
+    ``filter_rows(selections, *extra_values, skip=None)`` returns the matching
+    rows; ``extra_inputs`` maps further control ids to their reset value.
+    """
+    extra_inputs = extra_inputs or {}
+    dd_ids = [f"{prefix}-dd-{spec.col}" for spec in specs]
+    search_specs = [spec for spec in specs if spec.searchable]
+    search_ids = [f"{prefix}-dd-{spec.col}-search" for spec in search_specs]
+
+    # Filters -> rows fed into the table (its native sort applies on top),
+    # plus each dropdown's options (the distinct values left by all *other*
+    # filters, narrowed by its search box) and its closed-state label.
+    @app.callback(
+        Output(f"{prefix}-table", "data"),
+        *[Output(i, "options") for i in dd_ids],
+        *[Output(f"{i}-label", "children") for i in dd_ids],
+        *[Input(i, "value") for i in extra_inputs],
+        *[Input(i, "value") for i in dd_ids],
+        *[Input(i, "value") for i in search_ids],
+    )
+    def _filter(*values):
+        n_extra, n_dd = len(extra_inputs), len(dd_ids)
+        extra = values[:n_extra]
+        selected = values[n_extra : n_extra + n_dd]
+        searches = dict(
+            zip((s.col for s in search_specs), values[n_extra + n_dd :])
+        )
+        selections = {spec.col: sel for spec, sel in zip(specs, selected)}
+        rows = filter_rows(selections, *extra)
+        options = [
+            _search_options(
+                _dropdown_options(
+                    filter_rows(selections, *extra, skip=spec.col),
+                    spec,
+                    selections[spec.col],
+                ),
+                searches.get(spec.col),
+                selections[spec.col],
+            )
+            for spec in specs
+        ]
+        labels = [
+            _dropdown_label(spec, selections[spec.col]) for spec in specs
+        ]
+        # Typing in a search box only narrows that dropdown's options; the
+        # table rows are unchanged, so don't resend them on every keystroke.
+        if callback_context.triggered_id in search_ids:
+            return [no_update, *options, *labels]
+        return [rows.to_dict("records"), *options, *labels]
+
+    @app.callback(
+        *[Output(i, "value") for i in extra_inputs],
+        *[Output(i, "value") for i in dd_ids],
+        *[Output(i, "value") for i in search_ids],
+        Output(f"{prefix}-table", "sort_by"),
+        Input(f"{prefix}-reset", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def _reset(_n):
+        return [
+            *extra_inputs.values(),
+            *[[] for _ in dd_ids],
+            *["" for _ in search_ids],
+            [],
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Portfolio tab (filterable positions table + aggregate KPI cards)
 # ---------------------------------------------------------------------------
 _MONEY = Format(
     group=Group.yes,
@@ -706,78 +981,318 @@ def build_portfolio_tab(tab: dict) -> dcc.Tab:
             )
     kpi_row = html.Div(cards, style={"display": "flex", "flexWrap": "wrap"})
 
-    records = PORTFOLIO.positions.copy()
-    records["as_of"] = pd.to_datetime(records["as_of"]).dt.strftime("%Y-%m-%d")
-
     table = _card(
-        dash_table.DataTable(
-            id="portfolio-table",
-            columns=_PORTFOLIO_TABLE_COLUMNS,
-            data=records.to_dict("records"),
-            sort_action="native",
-            filter_action="native",
-            page_size=40,
-            style_as_list_view=True,
-            style_table={"overflowX": "auto"},
-            style_header={
-                "backgroundColor": C["background"],
-                "color": C["text"],
-                "fontWeight": "600",
-                "border": "none",
-                "borderBottom": f"2px solid {C['grid']}",
-            },
-            style_cell={
-                "backgroundColor": C["panel"],
-                "color": C["text"],
-                "border": "none",
-                "borderBottom": f"1px solid {C['grid']}",
-                "padding": "8px 10px",
-                "fontFamily": "Segoe UI, Arial, sans-serif",
-                "fontSize": "13px",
-                "textAlign": "right",
-                "maxWidth": "320px",
-                "overflow": "hidden",
-                "textOverflow": "ellipsis",
-            },
-            style_cell_conditional=[
-                {"if": {"column_id": c}, "textAlign": "left"}
-                for c in (
-                    "group",
-                    "name",
-                    "symbol",
-                    "isin",
-                    "currency",
-                    "as_of",
-                )
-            ],
-            style_data_conditional=[
-                {
-                    "if": {"filter_query": "{gain} < 0", "column_id": "gain"},
-                    "color": C["negative"],
+        [
+            _portfolio_controls(),
+            html.Div(
+                id="portfolio-summary",
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "13px",
+                    "margin": "12px 0 8px",
                 },
-                {
-                    "if": {"filter_query": "{gain} >= 0", "column_id": "gain"},
-                    "color": C["positive"],
-                },
-                {
-                    "if": {
-                        "filter_query": "{gain_pct} < 0",
-                        "column_id": "gain_pct",
-                    },
-                    "color": C["negative"],
-                },
-                {
-                    "if": {
-                        "filter_query": "{gain_pct} >= 0",
-                        "column_id": "gain_pct",
-                    },
-                    "color": C["positive"],
-                },
-            ],
-        ),
+            ),
+            _portfolio_table(),
+        ]
     )
 
     return _tab_shell(tab["label"], tab["kind"], [kpi_row, table])
+
+
+def _portfolio_records() -> pd.DataFrame:
+    records = PORTFOLIO.positions.copy()
+    records["as_of"] = pd.to_datetime(records["as_of"]).dt.strftime("%Y-%m-%d")
+    return records
+
+
+_PORTFOLIO_RECORDS = _portfolio_records()
+
+
+_PORTFOLIO_DROPDOWNS = [
+    _DropdownSpec("group", "Group", "190px"),
+    _DropdownSpec("name", "Name", "380px", searchable=True),
+]
+
+
+def _portfolio_controls() -> html.Div:
+    """Group/name dropdowns, gainers/losers filter and reset button."""
+    performance = _labelled_control(
+        "Show",
+        _radio(
+            "portfolio-performance",
+            [
+                {"label": "All", "value": "all"},
+                {"label": "Gainers", "value": "gain"},
+                {"label": "Losers", "value": "loss"},
+            ],
+            "all",
+        ),
+        "auto",
+    )
+    return _filter_controls(
+        "portfolio",
+        _PORTFOLIO_RECORDS,
+        _PORTFOLIO_DROPDOWNS,
+        extra=[performance],
+    )
+
+
+def _filter_portfolio(
+    selections: dict[str, list], performance: str, skip: str | None = None
+) -> pd.DataFrame:
+    df = _filter_by_dropdowns(_PORTFOLIO_RECORDS, selections, skip)
+    if performance == "gain":
+        df = df[df["gain"] > 0]
+    elif performance == "loss":
+        df = df[df["gain"] < 0]
+    return df
+
+
+def _portfolio_summary(rows: list[dict] | None) -> list:
+    rows = rows or []
+    df = pd.DataFrame(rows, columns=["value", "investment", "gain"])
+    value, invested, gain = (
+        pd.to_numeric(df[c], errors="coerce").sum()
+        for c in ("value", "investment", "gain")
+    )
+    pct = gain / invested * 100 if invested else 0.0
+    gain_color = C["positive"] if gain >= 0 else C["negative"]
+    strong = {"color": C["text"], "fontWeight": "600"}
+    return [
+        html.Span(
+            f"{len(rows)} of {len(_PORTFOLIO_RECORDS)} positions",
+            style=strong,
+        ),
+        "  ·  Value ",
+        html.Span(f"{value:,.0f} €", style=strong),
+        "  ·  Invested ",
+        html.Span(f"{invested:,.0f} €", style=strong),
+        "  ·  Gain ",
+        html.Span(
+            f"{gain:+,.0f} € ({pct:+.1f} %)",
+            style={**strong, "color": gain_color},
+        ),
+    ]
+
+
+def _portfolio_table() -> dash_table.DataTable:
+    return dash_table.DataTable(
+        id="portfolio-table",
+        columns=_PORTFOLIO_TABLE_COLUMNS,
+        data=_PORTFOLIO_RECORDS.to_dict("records"),
+        sort_action="native",
+        sort_by=[],
+        page_size=40,
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "fontWeight": "600",
+            "border": "none",
+            "borderBottom": f"2px solid {C['grid']}",
+        },
+        style_cell={
+            "backgroundColor": C["panel"],
+            "color": C["text"],
+            "border": "none",
+            "borderBottom": f"1px solid {C['grid']}",
+            "padding": "8px 10px",
+            "fontFamily": "Segoe UI, Arial, sans-serif",
+            "fontSize": "13px",
+            "textAlign": "right",
+            "maxWidth": "320px",
+            "overflow": "hidden",
+            "textOverflow": "ellipsis",
+        },
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in (
+                "group",
+                "name",
+                "symbol",
+                "isin",
+                "currency",
+                "as_of",
+            )
+        ],
+        style_data_conditional=[
+            {
+                "if": {"filter_query": "{gain} < 0", "column_id": "gain"},
+                "color": C["negative"],
+            },
+            {
+                "if": {"filter_query": "{gain} >= 0", "column_id": "gain"},
+                "color": C["positive"],
+            },
+            {
+                "if": {
+                    "filter_query": "{gain_pct} < 0",
+                    "column_id": "gain_pct",
+                },
+                "color": C["negative"],
+            },
+            {
+                "if": {
+                    "filter_query": "{gain_pct} >= 0",
+                    "column_id": "gain_pct",
+                },
+                "color": C["positive"],
+            },
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Transactions tab (every expense and income transaction, sort + filter)
+# ---------------------------------------------------------------------------
+_TXN_TABLE_COLUMNS = [
+    {"name": "Date", "id": "date", "type": "datetime"},
+    {"name": "Category", "id": "category"},
+    {"name": "Tag", "id": "tag"},
+    {"name": "Comment", "id": "description"},
+    {"name": "Type", "id": "type"},
+    {"name": "Amount", "id": "amount", "type": "numeric", "format": _MONEY},
+    {"name": "Year", "id": "year", "type": "numeric"},
+    {"name": "Month", "id": "month", "type": "numeric"},
+]
+_TXN_DROPDOWNS = [
+    _DropdownSpec("type", "Type", "210px"),
+    _DropdownSpec("year", "Year", "190px"),
+    _DropdownSpec("month", "Month", "190px", lambda m: calendar.month_abbr[m]),
+    _DropdownSpec("category", "Category", "260px", searchable=True),
+    _DropdownSpec("tag", "Tag", "260px", searchable=True),
+    _DropdownSpec("description", "Comment", "340px", searchable=True),
+]
+
+
+def _transaction_records() -> pd.DataFrame:
+    txns = DATA.all_transactions()
+    return pd.DataFrame(
+        {
+            "date": txns["date"].dt.strftime("%Y-%m-%d"),
+            "category": txns["category"],
+            "tag": txns["tag"],
+            "description": txns["description"],
+            "type": txns["type"],
+            "amount": txns["amount"],
+            "year": txns["date"].dt.year,
+            "month": txns["date"].dt.month,
+        }
+    ).reset_index(drop=True)
+
+
+_TXN_RECORDS = _transaction_records()
+
+
+def _filter_transactions(
+    selections: dict[str, list], skip: str | None = None
+) -> pd.DataFrame:
+    return _filter_by_dropdowns(_TXN_RECORDS, selections, skip)
+
+
+def _transactions_summary(rows: list[dict] | None) -> list:
+    rows = rows or []
+    expense = sum(r["amount"] for r in rows if r["type"] == "Expense")
+    income = sum(r["amount"] for r in rows if r["type"] == "Income")
+    net = income - expense
+    strong = {"color": C["text"], "fontWeight": "600"}
+    return [
+        html.Span(
+            f"{len(rows):,} of {len(_TXN_RECORDS):,} transactions",
+            style=strong,
+        ),
+        "  ·  Income ",
+        html.Span(f"{income:,.2f} €", style={**strong, "color": C["income"]}),
+        "  ·  Expenses ",
+        html.Span(
+            f"{expense:,.2f} €", style={**strong, "color": C["expense"]}
+        ),
+        "  ·  Net ",
+        html.Span(
+            f"{net:+,.2f} €",
+            style={
+                **strong,
+                "color": C["positive"] if net >= 0 else C["negative"],
+            },
+        ),
+    ]
+
+
+def _transactions_table() -> dash_table.DataTable:
+    return dash_table.DataTable(
+        id="transactions-table",
+        columns=_TXN_TABLE_COLUMNS,
+        data=_TXN_RECORDS.to_dict("records"),
+        sort_action="native",
+        sort_mode="multi",
+        sort_by=[],
+        page_size=50,
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "fontWeight": "600",
+            "border": "none",
+            "borderBottom": f"2px solid {C['grid']}",
+        },
+        style_cell={
+            "backgroundColor": C["panel"],
+            "color": C["text"],
+            "border": "none",
+            "borderBottom": f"1px solid {C['grid']}",
+            "padding": "8px 10px",
+            "fontFamily": "Segoe UI, Arial, sans-serif",
+            "fontSize": "13px",
+            "textAlign": "right",
+            "maxWidth": "320px",
+            "overflow": "hidden",
+            "textOverflow": "ellipsis",
+        },
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in ("date", "category", "tag", "description", "type")
+        ],
+        style_data_conditional=[
+            {
+                "if": {
+                    "filter_query": f'{{type}} = "{kind}"',
+                    "column_id": col,
+                },
+                "color": color,
+            }
+            for kind, color in (
+                ("Expense", C["expense"]),
+                ("Income", C["income"]),
+            )
+            for col in ("type", "amount")
+        ],
+    )
+
+
+def build_transactions_tab(tab: dict) -> dcc.Tab:
+    controls = _filter_controls(
+        "transactions",
+        _TXN_RECORDS,
+        _TXN_DROPDOWNS,
+        hint="; shift-click to add a column",
+    )
+    table = _card(
+        [
+            controls,
+            html.Div(
+                id="transactions-summary",
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "13px",
+                    "margin": "12px 0 8px",
+                },
+            ),
+            _transactions_table(),
+        ]
+    )
+    return _tab_shell(tab["label"], tab["kind"], [table])
 
 
 def build_layout() -> html.Div:
@@ -816,7 +1331,7 @@ app.layout = build_layout()
 def _register_callbacks() -> None:
     for tab in TABS:
         if tab["layout"] != "series":
-            # portfolio tab is static; the yearly tab registers its own
+            # the yearly and portfolio tabs register their own
             continue
         kind = tab["kind"]
         has_cats = tab["has_categories"]
@@ -912,10 +1427,14 @@ def _register_callbacks() -> None:
                     {
                         "date": d.strftime("%Y-%m-%d"),
                         "tag": t,
+                        "description": c,
                         "amount": a,
                     }
-                    for d, t, a in zip(
-                        txns["date"], txns["tag"], txns["amount"]
+                    for d, t, c, a in zip(
+                        txns["date"],
+                        txns["tag"],
+                        txns["description"],
+                        txns["amount"],
                     )
                 ]
                 return title, data
@@ -1015,6 +1534,20 @@ def _register_yearly_callbacks() -> None:
         )
 
 
+def _register_transactions_callbacks() -> None:
+    _register_filter_callbacks(
+        "transactions", _TXN_DROPDOWNS, _filter_transactions
+    )
+
+    # Totals of exactly what is left after the filters (all pages).
+    @app.callback(
+        Output("transactions-summary", "children"),
+        Input("transactions-table", "derived_virtual_data"),
+    )
+    def _update_summary(rows):
+        return _transactions_summary(rows)
+
+
 def _range_label(rng) -> str:
     start, end = _clamp_range(rng)
     return f"{_month_label(MONTHS[start])} – {_month_label(MONTHS[end])}"
@@ -1075,8 +1608,27 @@ def _sub_and_selected(rng, click_data, graph_id):
     return sub, selected
 
 
+def _register_portfolio_callbacks() -> None:
+    _register_filter_callbacks(
+        "portfolio",
+        _PORTFOLIO_DROPDOWNS,
+        _filter_portfolio,
+        extra_inputs={"portfolio-performance": "all"},
+    )
+
+    # Totals of exactly what is visible after all filters (all pages).
+    @app.callback(
+        Output("portfolio-summary", "children"),
+        Input("portfolio-table", "derived_virtual_data"),
+    )
+    def _update_summary(rows):
+        return _portfolio_summary(rows)
+
+
 _register_callbacks()
 _register_yearly_callbacks()
+_register_transactions_callbacks()
+_register_portfolio_callbacks()
 
 
 def main() -> None:
