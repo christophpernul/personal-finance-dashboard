@@ -23,6 +23,7 @@ TRANSFORM_DIR = Path(
     os.environ.get("FINANCE_TRANSFORM_DIR", DEFAULT_TRANSFORM_DIR)
 )
 PORTFOLIO_FILE = "transform_portfolio__value.csv"
+CRYPTO_PORTFOLIO_FILE = "transform_crypto__portfolio_value.csv"
 
 CSV_SEP = ";"
 CSV_DECIMAL = ","

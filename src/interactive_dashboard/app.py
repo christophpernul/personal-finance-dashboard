@@ -36,11 +36,11 @@ from dash import (
     html,
     no_update,
 )
-from dash.dash_table.Format import Format, Group, Scheme, Symbol
+from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 
 from . import config, figures
 from .data import FinanceData, load_finance_data
-from .portfolio import PortfolioData, load_portfolio_data
+from .portfolio import GROUP_ORDER, PortfolioData, load_portfolio_data
 
 C = config.COLORS
 
@@ -904,16 +904,37 @@ _PERCENT = Format(
     symbol=Symbol.yes,
     symbol_suffix=" %",
 )
-_SHARES = Format(group=Group.yes, precision=2, scheme=Scheme.fixed)
+# Significant digits rather than fixed decimals: crypto quantities and prices
+# span from fractions of a cent / satoshi to tens of thousands.
+_QUANTITY = Format(
+    group=Group.yes,
+    precision=6,
+    scheme=Scheme.decimal_or_exponent,
+    trim=Trim.yes,
+)
+_PRICE = Format(
+    group=Group.yes,
+    precision=6,
+    scheme=Scheme.decimal_or_exponent,
+    trim=Trim.yes,
+    symbol=Symbol.yes,
+    symbol_suffix=" €",
+)
 
 _PORTFOLIO_TABLE_COLUMNS = [
     {"name": "Group", "id": "group"},
     {"name": "Name", "id": "name"},
     {"name": "Symbol", "id": "symbol"},
     {"name": "ISIN", "id": "isin"},
+    {"name": "Exchange", "id": "exchange"},
     {"name": "Ccy", "id": "currency"},
-    {"name": "Shares", "id": "shares", "type": "numeric", "format": _SHARES},
-    {"name": "Price", "id": "price", "type": "numeric", "format": _MONEY},
+    {
+        "name": "Quantity",
+        "id": "shares",
+        "type": "numeric",
+        "format": _QUANTITY,
+    },
+    {"name": "Price", "id": "price", "type": "numeric", "format": _PRICE},
     {
         "name": "Investment",
         "id": "investment",
@@ -990,7 +1011,7 @@ def build_portfolio_tab(tab: dict) -> dcc.Tab:
     as_of = PORTFOLIO.as_of_by_group()
 
     cards = [_portfolio_group_card("Total Portfolio", agg.loc["All"], None)]
-    for grp in ("ETFs", "Stocks"):
+    for grp in GROUP_ORDER:
         if grp in agg.index:
             cards.append(
                 _portfolio_group_card(grp, agg.loc[grp], as_of.get(grp))
@@ -1026,12 +1047,13 @@ _PORTFOLIO_RECORDS = _portfolio_records()
 
 _PORTFOLIO_DROPDOWNS = [
     _DropdownSpec("group", "Group", "190px"),
+    _DropdownSpec("exchange", "Exchange", "220px"),
     _DropdownSpec("name", "Name", "380px", searchable=True),
 ]
 
 
 def _portfolio_controls() -> html.Div:
-    """Group/name dropdowns, gainers/losers filter and reset button."""
+    """Group/exchange/name dropdowns, gainers/losers filter and reset button."""
     performance = _labelled_control(
         "Show",
         _radio(
@@ -1128,6 +1150,7 @@ def _portfolio_table() -> dash_table.DataTable:
                 "name",
                 "symbol",
                 "isin",
+                "exchange",
                 "currency",
                 "as_of",
             )
