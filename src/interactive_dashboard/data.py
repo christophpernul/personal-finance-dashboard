@@ -2,7 +2,9 @@
 
 The source CSVs are **tidy transaction tables** — one row per transaction:
 
-``date;tag;category;amount`` (German locale: ``;`` separator, ``,`` decimal).
+``date;tag;category;amount;description`` (German locale: ``;`` separator, ``,``
+decimal). ``description`` is the free-text comment from the source app; older
+files without it still load (with empty descriptions).
 
 * expenses: ``amount`` is negative (e.g. ``-15,54``)
 * incomes:  ``amount`` is positive
@@ -24,7 +26,8 @@ from . import config
 def _load_transactions(path: Path) -> pd.DataFrame:
     """Read one German-locale, semicolon-separated transaction CSV into a tidy
     frame with columns ``date`` (Timestamp), ``month`` (month-start Timestamp),
-    ``tag``, ``category`` and numeric ``amount`` (original sign preserved)."""
+    ``tag``, ``category``, ``description`` and numeric ``amount`` (original
+    sign preserved)."""
     df = pd.read_csv(
         path,
         sep=config.CSV_SEP,
@@ -32,9 +35,9 @@ def _load_transactions(path: Path) -> pd.DataFrame:
         parse_dates=[config.DATE_COLUMN],
     )
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0)
-    for col in ("tag", "category"):
+    for col in ("tag", "category", "description"):
         if col in df.columns:
-            df[col] = df[col].astype(str).str.strip()
+            df[col] = df[col].fillna("").astype(str).str.strip()
         else:
             df[col] = ""
     df = df.rename(columns={config.DATE_COLUMN: "date"})
@@ -167,16 +170,37 @@ class FinanceData:
         """Individual transactions for ``category`` within the (already sliced)
         period, newest first. Pass ``month`` to restrict to a single month.
 
-        Columns: ``date``, ``tag``, ``amount`` (positive magnitude).
+        Columns: ``date``, ``tag``, ``description``, ``amount`` (positive
+        magnitude).
         """
+        cols = ["date", "tag", "description", "amount"]
         txns = self._txns(kind)
         if txns.empty:
-            return txns.loc[:, ["date", "tag", "amount"]]
+            return txns.loc[:, cols]
         sel = txns[txns["category"] == category]
         if month is not None:
             sel = sel[sel["month"] == month]
         sel = sel.sort_values("date", ascending=False)
-        return sel.loc[:, ["date", "tag", "amount"]]
+        return sel.loc[:, cols]
+
+    def all_transactions(self) -> pd.DataFrame:
+        """Expenses and income in one frame, newest first.
+
+        Columns: ``date``, ``category``, ``tag``, ``description``, ``type``
+        (``"Expense"`` / ``"Income"``) and ``amount`` (positive magnitude).
+        """
+        cols = ["date", "category", "tag", "description", "amount"]
+        txns = pd.concat(
+            [
+                self.expense_txns[cols].assign(type="Expense"),
+                self.income_txns[cols].assign(type="Income"),
+            ],
+            ignore_index=True,
+        )
+        txns = txns.sort_values("date", ascending=False, kind="stable")
+        return txns.loc[
+            :, ["date", "category", "tag", "description", "type", "amount"]
+        ]
 
     # -- calendar years / year-to-date ---------------------------------------
     @property

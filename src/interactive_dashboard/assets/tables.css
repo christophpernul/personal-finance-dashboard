@@ -1,0 +1,123 @@
+/* DataTable tweaks for the dark theme (Dash loads ./assets automatically). */
+
+/* Make the whole header cell toggle sorting, not just the tiny icon: the
+   sort icon's ::after stretches over its <th>, so a click anywhere on the
+   header lands on the icon's click handler. */
+.dash-spreadsheet-container .dash-spreadsheet-inner th.dash-header {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+.dash-spreadsheet-container .dash-spreadsheet-inner th.dash-header .column-header--sort::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+.dash-spreadsheet-container .dash-spreadsheet-inner th.dash-header:hover {
+    color: #ffffff !important;
+}
+
+/* Sort icons: dim when unsorted, highlighted on the active column. */
+.dash-spreadsheet-container .column-header--sort {
+    color: #8b95a1;
+    margin-right: 4px;
+}
+.dash-spreadsheet-container .column-header--sort svg[data-icon="sort-up"],
+.dash-spreadsheet-container .column-header--sort svg[data-icon="sort-down"] {
+    color: #29b6f6;
+}
+
+/* Pagination controls. */
+.dash-table-container .previous-next-container button,
+.dash-table-container .previous-next-container input {
+    background-color: #39414c;
+    color: #c8ced6;
+    border: 1px solid #4a5461;
+}
+
+/* Checkbox dropdown filters (see _check_dropdown in app.py): a <details>
+   whose menu stays open while several values are ticked. */
+.check-dropdown {
+    position: relative;
+}
+.check-dropdown > summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 36px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background-color: #2b323b;
+    border: 1px solid #4a5461;
+    border-radius: 6px;
+    color: #c8ced6;
+    cursor: pointer;
+    user-select: none;
+}
+.check-dropdown > summary::-webkit-details-marker {
+    display: none;
+}
+.check-dropdown[open] > summary {
+    border-color: #29b6f6;
+}
+.check-dropdown-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.check-dropdown-arrow {
+    color: #8b95a1;
+}
+.check-dropdown-menu {
+    position: absolute;
+    z-index: 1000;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 100%;
+    width: max-content;
+    max-width: 440px;
+    box-sizing: border-box;
+    padding: 6px;
+    background-color: #2b323b;
+    border: 1px solid #4a5461;
+    border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+.check-dropdown-search {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+    padding: 5px 8px;
+    background-color: #39414c;
+    color: #c8ced6;
+    border: 1px solid #4a5461;
+    border-radius: 4px;
+}
+.check-dropdown-search::placeholder {
+    color: #6b7581;
+}
+.check-dropdown-list {
+    max-height: 280px;
+    overflow-y: auto;
+}
+.check-dropdown-option {
+    display: flex !important;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 4px;
+    color: #c8ced6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+}
+.check-dropdown-option:hover {
+    background-color: #39414c;
+}
+.check-dropdown-option input {
+    margin: 0 8px 0 0;
+    accent-color: #29b6f6;
+    cursor: pointer;
+}
