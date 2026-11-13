@@ -20,9 +20,10 @@ The Sold Positions tab lists every sold ETF/stock position with what it was
 bought and sold for, its dividends and costs, net profit and return; clicking a
 position lists its single cashflows.
 
-The Cash tab (Balance Sheet section) shows the balance and interest rate of
-every account, the running fixed-term deposits and how long they keep money
-bound, and all cash split into available and bound per month.
+The Balancesheet tab (Balance Sheet section) shows the balance and interest
+rate of every account, the running fixed-term deposits and how long they keep
+money bound, the liabilities (credit cards, loans), and all cash split into
+available and bound per month.
 
 Run with::
 
@@ -126,7 +127,7 @@ SECTIONS = [
     {
         "key": "balance-section",
         "label": "Balance Sheet",
-        "tabs": [{"kind": "cash", "label": "Cash", "layout": "cash"}],
+        "tabs": [{"kind": "cash", "label": "Balancesheet", "layout": "cash"}],
     },
 ]
 TABS = [tab for section in SECTIONS for tab in section["tabs"]]
@@ -1953,8 +1954,8 @@ def _iso(values: pd.Series) -> pd.Series:
     return values.dt.strftime("%Y-%m-%d").fillna("")
 
 
-def _cash_account_records(cash: CashData) -> list[dict]:
-    df = cash.accounts.copy()
+def _cash_account_records(accounts: pd.DataFrame) -> list[dict]:
+    df = accounts.copy()
     df["platform"] = df["platform"].fillna("")
     df["rate_valid_until"] = _iso(df["rate_valid_until"])
     df["balance_date"] = _iso(df["balance_date"]) + df["is_stale"].map(
@@ -2022,14 +2023,16 @@ def _cash_kpi(title: str, value: str, subtitle: str, color: str | None = None):
 
 
 def _cash_kpis(cash: CashData, today: pd.Timestamp) -> html.Div:
-    available, bound = cash.available, cash.bound
+    available, bound, owed = cash.available, cash.bound, cash.owed
     as_of = cash.as_of
     n_running = len(cash.running_deposits)
+    n_liabilities = len(cash.liabilities)
     cards = [
         _cash_kpi(
-            "Total cash",
-            f"{available + bound:,.0f} €",
-            f"as of {as_of:%d %b %Y}" if as_of is not None else "no balances",
+            "Net cash",
+            f"{cash.net:,.0f} €",
+            f"{available + bound:,.0f} € cash − {abs(owed):,.0f} € owed"
+            + (f"  ·  as of {as_of:%d %b %Y}" if as_of is not None else ""),
         ),
         _cash_kpi(
             "Available",
@@ -2042,6 +2045,13 @@ def _cash_kpis(cash: CashData, today: pd.Timestamp) -> html.Div:
             f"{bound:,.0f} €",
             f"in {n_running} fixed-term deposit{'s' if n_running != 1 else ''}",
             C["cash_bound"],
+        ),
+        _cash_kpi(
+            "Liabilities",
+            f"{abs(owed):,.0f} €",
+            f"on {n_liabilities} credit card / loan account"
+            + ("s" if n_liabilities != 1 else ""),
+            C["negative"] if owed < 0 else None,
         ),
     ]
     nxt = cash.next_maturity()
@@ -2078,18 +2088,39 @@ def build_cash_tab(tab: dict) -> dcc.Tab:
 
     today = pd.Timestamp.today().normalize()
     open_deposits = CASH.deposits[CASH.deposits["status"] != STATUS_MATURED]
+    stale_style = [
+        {
+            "if": {
+                "filter_query": f'{{balance_date}} contains "{_STALE_SUFFIX.strip()}"',
+                "column_id": "balance_date",
+            },
+            "color": C["negative"],
+        }
+    ]
     accounts = _card(
         [
             _section_title("Accounts"),
             _cash_table(
                 "cash-accounts-table",
                 _CASH_ACCOUNT_COLUMNS,
-                _cash_account_records(CASH),
-                [
+                _cash_account_records(CASH.accounts),
+                stale_style,
+            ),
+        ]
+    )
+    liabilities = _card(
+        [
+            _section_title("Liabilities"),
+            _cash_table(
+                "cash-liabilities-table",
+                _CASH_ACCOUNT_COLUMNS,
+                _cash_account_records(CASH.liabilities),
+                stale_style
+                + [
                     {
                         "if": {
-                            "filter_query": f'{{balance_date}} contains "{_STALE_SUFFIX.strip()}"',
-                            "column_id": "balance_date",
+                            "filter_query": "{balance} < 0",
+                            "column_id": "balance",
                         },
                         "color": C["negative"],
                     }
@@ -2135,7 +2166,7 @@ def build_cash_tab(tab: dict) -> dcc.Tab:
     return _tab_shell(
         tab["label"],
         tab["kind"],
-        [_cash_kpis(CASH, today), accounts, deposits, liquidity],
+        [_cash_kpis(CASH, today), accounts, deposits, liabilities, liquidity],
     )
 
 

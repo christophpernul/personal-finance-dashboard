@@ -318,7 +318,8 @@ def _comparison_height(n_categories: int) -> int:
 
 def cash_liquidity_figure(liquidity: pd.DataFrame) -> go.Figure:
     """Stacked monthly bars of available (accounts) and bound (fixed-term
-    deposits) cash; the projected months after the current one are faded."""
+    deposits) cash, with liabilities below zero once anything is owed; the
+    projected months after the current one are faded."""
     if liquidity.empty:
         return _empty("No cash balances recorded yet")
     # The dates are month ends; label the bars by month on a category axis so
@@ -327,11 +328,15 @@ def cash_liquidity_figure(liquidity: pd.DataFrame) -> go.Figure:
     projected = liquidity["is_projection"].tolist()
     opacity = [0.45 if p else 1.0 for p in projected]
 
-    fig = go.Figure()
-    for column, name, color in (
+    series = [
         ("available", "Available", C["cash_available"]),
         ("bound", "Bound (fixed-term)", C["cash_bound"]),
-    ):
+    ]
+    if liquidity["liabilities"].fillna(0.0).ne(0).any():
+        series.append(("liabilities", "Liabilities", C["negative"]))
+
+    fig = go.Figure()
+    for column, name, color in series:
         fig.add_bar(
             x=months,
             y=liquidity[column].fillna(0.0),
@@ -352,7 +357,8 @@ def cash_liquidity_figure(liquidity: pd.DataFrame) -> go.Figure:
         )
     _base_layout(fig, height=400)
     fig.update_layout(
-        barmode="stack",
+        # relative: negative liabilities stack downwards from zero
+        barmode="relative",
         legend=dict(orientation="h", y=1.18, x=0, bgcolor="rgba(0,0,0,0)"),
         margin=dict(l=60, r=20, t=80, b=40),
     )

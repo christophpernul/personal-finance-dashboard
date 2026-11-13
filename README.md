@@ -44,12 +44,14 @@ ROI and return p.a.; clicking a position lists its single cashflows. It reads
 `target_portfolio__sold_positions.csv` and `target_portfolio__sold_position_flows.csv`
 from `FINANCE_DATA_DIR`, both computed by the datahub.
 
-The **Balance Sheet → Cash** tab shows where cash lies: KPI cards for total,
-available and bound cash, the next maturity and the average interest rate
-(weighted by amount), a table of all accounts with balance, interest rate and the
-date of the balance (marked *outdated* after 35 days), a table and timeline of the
-fixed-term deposits, and a monthly chart of available vs. bound cash that is
-projected until the last deposit matures. It reads the datahub's
+The **Balance Sheet → Balancesheet** tab shows where cash lies and what is owed:
+KPI cards for net cash (cash minus liabilities), available and bound cash,
+liabilities, the next maturity and the average interest rate (weighted by amount,
+liabilities left out), a table of all cash accounts with balance, interest rate and
+the date of the balance (marked *outdated* after 35 days), a table and timeline of
+the fixed-term deposits, a table of the liabilities (credit cards and loans), and a
+monthly chart of available vs. bound cash (liabilities below zero once anything is
+owed) that is projected until the last deposit matures. It reads the datahub's
 `transform_cash__balances_monthly.csv`, `transform_cash__term_deposits.csv` and
 `transform_cash__liquidity_monthly.csv` from `FINANCE_TRANSFORM_DIR`, which come
 from the manually maintained `source_cash_balance_sheet.ods`. The tab only shows
