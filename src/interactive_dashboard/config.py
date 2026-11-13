@@ -14,6 +14,9 @@ DATA_DIR = Path(os.environ.get("FINANCE_DATA_DIR", DEFAULT_DATA_DIR))
 
 EXPENSES_FILE = "target_cashflow__expenses.csv"
 INCOMES_FILE = "target_cashflow__incomes.csv"
+# Sold (closed) ETF/stock positions and every cashflow of them.
+SOLD_POSITIONS_FILE = "target_portfolio__sold_positions.csv"
+SOLD_POSITION_FLOWS_FILE = "target_portfolio__sold_position_flows.csv"
 
 # Portfolio positions live in the transform layer (one row per position).
 DEFAULT_TRANSFORM_DIR = Path(

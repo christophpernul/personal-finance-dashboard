@@ -1,7 +1,8 @@
 """Interactive personal-finance dashboard (Plotly Dash).
 
 The top-level navigation has two sections: Cashflow (Expenses, Income,
-Cashflow, Yearly and Transactions tabs) and Investment (Portfolio tab).
+Cashflow, Yearly and Transactions tabs) and Investment (Portfolio and Sold
+Positions tabs).
 
 Expenses, Income, Cashflow: each tab lets you freely pick a month range
 (slider + presets), shows monthly bars with the period average, and — for
@@ -14,6 +15,10 @@ any two years.
 
 The Transactions tab lists every expense and income transaction in one
 sortable, filterable table, with totals of whatever the filters leave over.
+
+The Sold Positions tab lists every sold ETF/stock position with what it was
+bought and sold for, its dividends and costs, net profit and return; clicking a
+position lists its single cashflows.
 
 Run with::
 
@@ -41,6 +46,11 @@ from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 from . import config, figures
 from .data import FinanceData, load_finance_data
 from .portfolio import GROUP_ORDER, PortfolioData, load_portfolio_data
+from .sold_positions import (
+    SOLD_GROUP_ORDER,
+    SoldPositionsData,
+    load_sold_positions_data,
+)
 
 C = config.COLORS
 
@@ -59,13 +69,14 @@ YEAR_COMPLETE = YTD_CUTOFF.month == 12
 YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 
 PORTFOLIO: PortfolioData = load_portfolio_data()
+SOLD: SoldPositionsData = load_sold_positions_data()
 
 # Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
 # later. Each section is a top-level navigation item holding its own row of
 # tabs. ``layout`` selects how a tab is rendered: "series" = monthly bars +
 # range slider; "yearly" = calendar-year totals + category comparisons;
 # "portfolio" = positions table + aggregate KPI cards; "transactions" = table
-# of all transactions.
+# of all transactions; "sold" = sold positions table + KPI cards + drill-down.
 SECTIONS = [
     {
         "key": "cashflow-section",
@@ -102,6 +113,7 @@ SECTIONS = [
         "label": "Investment",
         "tabs": [
             {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
+            {"kind": "sold", "label": "Sold Positions", "layout": "sold"},
         ],
     },
 ]
@@ -285,6 +297,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_yearly_tab(tab)
     if tab["layout"] == "transactions":
         return build_transactions_tab(tab)
+    if tab["layout"] == "sold":
+        return build_sold_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -1360,6 +1374,486 @@ def build_transactions_tab(tab: dict) -> dcc.Tab:
     return _tab_shell(tab["label"], tab["kind"], [table])
 
 
+# ---------------------------------------------------------------------------
+# Sold Positions tab (sold ETF/stock positions + KPI cards + cashflow drill-down)
+# ---------------------------------------------------------------------------
+_SOLD_ROI_HINT = (
+    "Net profit / buy amount. Net profit = sell proceeds + dividends − buy "
+    "amount − order costs − ongoing costs."
+)
+_SOLD_ANNUAL_HINT = (
+    "Money-weighted average annual return (XIRR) of the position's buys, "
+    "sells, dividends and costs: accounts for how long each euro was invested."
+)
+_SOLD_TABLE_COLUMNS = [
+    {"name": "Group", "id": "group"},
+    {"name": "Name", "id": "name"},
+    {"name": "ISIN", "id": "isin"},
+    {"name": "Depot", "id": "exchange"},
+    {"name": "First buy", "id": "open_date", "type": "datetime"},
+    {"name": "Sold", "id": "close_date", "type": "datetime"},
+    {"name": "Days held", "id": "holding_days", "type": "numeric"},
+    {
+        "name": "Shares",
+        "id": "shares_bought",
+        "type": "numeric",
+        "format": _QUANTITY,
+    },
+    {
+        "name": "Bought for",
+        "id": "buy_amount",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Sold for",
+        "id": "sell_amount",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Price gain",
+        "id": "price_gain",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Dividends",
+        "id": "dividends",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Order costs",
+        "id": "order_costs",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Ongoing costs",
+        "id": "ongoing_costs",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "Net profit",
+        "id": "net_profit",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {"name": "ROI", "id": "roi_pct", "type": "numeric", "format": _PERCENT},
+    {
+        "name": "Return p.a.",
+        "id": "annual_return_pct",
+        "type": "numeric",
+        "format": _PERCENT,
+    },
+    {"name": "Bought again", "id": "rebought"},
+]
+_SOLD_LEFT_COLUMNS = (
+    "group",
+    "name",
+    "isin",
+    "exchange",
+    "open_date",
+    "close_date",
+    "rebought",
+)
+_SOLD_DROPDOWNS = [
+    _DropdownSpec("group", "Group", "170px"),
+    _DropdownSpec("exchange", "Depot", "200px"),
+    _DropdownSpec("sold_year", "Year sold", "170px"),
+    _DropdownSpec("name", "Name", "380px", searchable=True),
+]
+
+
+def _sold_records() -> pd.DataFrame:
+    records = SOLD.positions.copy()
+    for col in ("open_date", "close_date"):
+        records[col] = records[col].dt.strftime("%Y-%m-%d")
+    return records
+
+
+_SOLD_RECORDS = _sold_records()
+
+
+def _signed_color(amount: float) -> str:
+    return C["positive"] if amount >= 0 else C["negative"]
+
+
+def _pct_span(value: float, size: str = "15px", **attrs) -> html.Span:
+    """'+5.4 %' in green/red, or a muted '—' when there is no value."""
+    missing = pd.isna(value)
+    return html.Span(
+        "—" if missing else f"{value:+.1f} %",
+        style={
+            "color": C["text_muted"] if missing else _signed_color(value),
+            "fontSize": size,
+            "fontWeight": "600",
+        },
+        **attrs,
+    )
+
+
+def _sold_group_card(title: str, row: pd.Series, subtitle: str) -> html.Div:
+    profit = float(row["net_profit"])
+    muted = {"color": C["text_muted"], "fontSize": "13px"}
+    plain = {"color": C["text"], "fontSize": "13px"}
+
+    def line(*parts, **style):
+        return html.Div(list(parts), style={"marginTop": "3px", **style})
+
+    return _card(
+        [
+            html.Div(
+                title, style={"color": C["text_muted"], "fontSize": "15px"}
+            ),
+            html.Div(
+                subtitle,
+                style={"color": C["text_muted"], "fontSize": "12px"},
+            ),
+            html.Div(
+                f"{profit:+,.0f} €",
+                title="Net profit after all costs",
+                style={
+                    "color": _signed_color(profit),
+                    "fontSize": "30px",
+                    "fontWeight": "600",
+                    "marginTop": "6px",
+                },
+            ),
+            line(
+                _pct_span(row["roi_pct"]),
+                html.Span(" ROI  ·  ", style=muted),
+                _pct_span(row["annual_return_pct"], title=_SOLD_ANNUAL_HINT),
+                html.Span(" per year", style=muted),
+                title=_SOLD_ROI_HINT,
+            ),
+            line(
+                html.Span("Bought for ", style=muted),
+                html.Span(f"{row['buy_amount']:,.0f} €", style=plain),
+                html.Span("  ·  Sold for ", style=muted),
+                html.Span(f"{row['sell_amount']:,.0f} €", style=plain),
+                marginTop="8px",
+            ),
+            line(
+                html.Span("Dividends ", style=muted),
+                html.Span(f"+{row['dividends']:,.0f} €", style=plain),
+                html.Span("  ·  Costs ", style=muted),
+                html.Span(f"−{row['total_costs']:,.0f} €", style=plain),
+            ),
+        ],
+        flex="1",
+        minWidth="250px",
+    )
+
+
+def _sold_controls() -> html.Div:
+    performance = _labelled_control(
+        "Show",
+        _radio(
+            "sold-performance",
+            [
+                {"label": "All", "value": "all"},
+                {"label": "Gainers", "value": "gain"},
+                {"label": "Losers", "value": "loss"},
+            ],
+            "all",
+        ),
+        "auto",
+    )
+    rebought = _labelled_control(
+        "Bought again later",
+        _radio(
+            "sold-rebought",
+            [
+                {"label": "All", "value": "all"},
+                {"label": "No (exited)", "value": "No"},
+                {"label": "Yes", "value": "Yes"},
+            ],
+            "all",
+        ),
+        "auto",
+    )
+    return _filter_controls(
+        "sold",
+        _SOLD_RECORDS,
+        _SOLD_DROPDOWNS,
+        extra=[performance, rebought],
+        hint="; click a position to list its cashflows",
+    )
+
+
+def _filter_sold(
+    selections: dict[str, list],
+    performance: str,
+    rebought: str,
+    skip: str | None = None,
+) -> pd.DataFrame:
+    df = _filter_by_dropdowns(_SOLD_RECORDS, selections, skip)
+    if performance == "gain":
+        df = df[df["net_profit"] > 0]
+    elif performance == "loss":
+        df = df[df["net_profit"] < 0]
+    if rebought in ("Yes", "No"):
+        df = df[df["rebought"] == rebought]
+    return df
+
+
+def _sold_summary(rows: list[dict] | None) -> list:
+    ids = [r["id"] for r in rows or []]
+    totals = SOLD.aggregate(SOLD.positions[SOLD.positions["id"].isin(ids)])
+    strong = {"color": C["text"], "fontWeight": "600"}
+    profit, roi = totals["net_profit"], totals["roi_pct"]
+    roi_text = "" if pd.isna(roi) else f" ({roi:+.1f} %)"
+    return [
+        html.Span(
+            f"{len(ids)} of {len(_SOLD_RECORDS)} sold positions", style=strong
+        ),
+        "  ·  Bought for ",
+        html.Span(f"{totals['buy_amount']:,.0f} €", style=strong),
+        "  ·  Sold for ",
+        html.Span(f"{totals['sell_amount']:,.0f} €", style=strong),
+        "  ·  Dividends ",
+        html.Span(f"{totals['dividends']:,.0f} €", style=strong),
+        "  ·  Costs ",
+        html.Span(f"{totals['total_costs']:,.0f} €", style=strong),
+        "  ·  Net profit ",
+        html.Span(
+            f"{profit:+,.0f} €{roi_text}",
+            style={**strong, "color": _signed_color(profit)},
+        ),
+    ]
+
+
+_TABLE_HEADER_STYLE = {
+    "backgroundColor": C["background"],
+    "color": C["text"],
+    "fontWeight": "600",
+    "border": "none",
+    "borderBottom": f"2px solid {C['grid']}",
+}
+_TABLE_CELL_STYLE = {
+    "backgroundColor": C["panel"],
+    "color": C["text"],
+    "border": "none",
+    "borderBottom": f"1px solid {C['grid']}",
+    "padding": "8px 10px",
+    "fontFamily": "Segoe UI, Arial, sans-serif",
+    "fontSize": "13px",
+    "textAlign": "right",
+    "maxWidth": "320px",
+    "overflow": "hidden",
+    "textOverflow": "ellipsis",
+}
+
+
+def _sold_table() -> dash_table.DataTable:
+    return dash_table.DataTable(
+        id="sold-table",
+        columns=_SOLD_TABLE_COLUMNS,
+        data=_SOLD_RECORDS.to_dict("records"),
+        sort_action="native",
+        sort_by=[],
+        page_size=40,
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header=_TABLE_HEADER_STYLE,
+        style_cell=_TABLE_CELL_STYLE,
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in _SOLD_LEFT_COLUMNS
+        ],
+        style_data_conditional=[
+            {
+                "if": {"filter_query": f"{{{col}}} {op} 0", "column_id": col},
+                "color": color,
+            }
+            for col in (
+                "price_gain",
+                "net_profit",
+                "roi_pct",
+                "annual_return_pct",
+            )
+            for op, color in (("<", C["negative"]), (">=", C["positive"]))
+        ]
+        + [
+            {
+                "if": {"state": "active"},
+                "backgroundColor": C["grid"],
+                "border": f"1px solid {C['average']}",
+            }
+        ],
+        tooltip_header={
+            "roi_pct": _SOLD_ROI_HINT,
+            "annual_return_pct": _SOLD_ANNUAL_HINT,
+            "ongoing_costs": "Yearly per-security costs (e.g. comdirect "
+            "Wertpapierkosten), split by the days held in each year.",
+            "rebought": "The security was bought again after this sale "
+            "(e.g. sold and re-bought to use the tax-free allowance).",
+        },
+        tooltip_delay=300,
+        tooltip_duration=None,
+    )
+
+
+def _sold_flows_card() -> html.Div:
+    return _card(
+        [
+            html.Div(
+                "Click a position above to list its cashflows",
+                id="sold-flows-title",
+                style={
+                    "color": C["text"],
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                    "marginBottom": "10px",
+                },
+            ),
+            dash_table.DataTable(
+                id="sold-flows-table",
+                columns=[
+                    {"name": "Date", "id": "date"},
+                    {"name": "Type", "id": "type"},
+                    {
+                        "name": "Amount",
+                        "id": "amount",
+                        "type": "numeric",
+                        "format": _MONEY,
+                    },
+                ],
+                data=[],
+                sort_action="native",
+                page_size=20,
+                style_as_list_view=True,
+                style_table={"overflowX": "auto", "maxWidth": "640px"},
+                style_header=_TABLE_HEADER_STYLE,
+                style_cell=_TABLE_CELL_STYLE,
+                style_cell_conditional=[
+                    {"if": {"column_id": c}, "textAlign": "left"}
+                    for c in ("date", "type")
+                ],
+                style_data_conditional=[
+                    {
+                        "if": {
+                            "filter_query": f"{{amount}} {op} 0",
+                            "column_id": "amount",
+                        },
+                        "color": color,
+                    }
+                    for op, color in (
+                        ("<", C["negative"]),
+                        (">=", C["positive"]),
+                    )
+                ],
+            ),
+        ]
+    )
+
+
+def _sold_kpi_cards(rows: list[dict] | None) -> list[html.Div]:
+    """KPI cards (all + per group) of the positions left by the table
+    filters; ``rows`` None means unfiltered."""
+    ids = None if rows is None else [r["id"] for r in rows]
+    agg = SOLD.group_aggregates(ids)
+    total = len(_SOLD_RECORDS)
+    filtered = ids is not None and len(ids) < total
+
+    def subtitle(n: int) -> str:
+        return f"{n} positions sold" + ("  ·  filtered" if filtered else "")
+
+    all_row = agg.loc["All"]
+    cards = [
+        _sold_group_card(
+            "Filtered sold positions" if filtered else "All sold positions",
+            all_row,
+            f"{int(all_row['n_positions'])} of {total} positions"
+            if filtered
+            else subtitle(total),
+        )
+    ]
+    for grp in SOLD_GROUP_ORDER:
+        if grp in agg.index:
+            row = agg.loc[grp]
+            cards.append(
+                _sold_group_card(grp, row, subtitle(int(row["n_positions"])))
+            )
+    return cards
+
+
+def build_sold_tab(tab: dict) -> dcc.Tab:
+    kpi_row = html.Div(
+        _sold_kpi_cards(None),
+        id="sold-kpis",
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+
+    table = _card(
+        [
+            _sold_controls(),
+            html.Div(
+                id="sold-summary",
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "13px",
+                    "margin": "12px 0 8px",
+                },
+            ),
+            _sold_table(),
+        ]
+    )
+    return _tab_shell(
+        tab["label"], tab["kind"], [kpi_row, table, _sold_flows_card()]
+    )
+
+
+def _register_sold_callbacks() -> None:
+    _register_filter_callbacks(
+        "sold",
+        _SOLD_DROPDOWNS,
+        _filter_sold,
+        extra_inputs={"sold-performance": "all", "sold-rebought": "all"},
+    )
+
+    # Summary line and KPI cards of exactly what is visible after all
+    # filters (all pages).
+    @app.callback(
+        Output("sold-summary", "children"),
+        Output("sold-kpis", "children"),
+        Input("sold-table", "derived_virtual_data"),
+    )
+    def _update_summary(rows):
+        return _sold_summary(rows), _sold_kpi_cards(rows)
+
+    # Clicking any cell of a position lists that position's cashflows.
+    @app.callback(
+        Output("sold-flows-title", "children"),
+        Output("sold-flows-table", "data"),
+        Input("sold-table", "active_cell"),
+    )
+    def _update_flows(active_cell):
+        position_id = (active_cell or {}).get("row_id")
+        match = SOLD.positions[SOLD.positions["id"] == position_id]
+        if match.empty:
+            return "Click a position above to list its cashflows", []
+        position = match.iloc[0]
+        flows = SOLD.position_flows(position_id)
+        records = pd.DataFrame(
+            {
+                "date": flows["date"].dt.strftime("%Y-%m-%d"),
+                "type": flows["type"],
+                "amount": flows["amount"],
+            }
+        ).to_dict("records")
+        profit = position["net_profit"]
+        title = (
+            f"{position['name']}  ·  {position['open_date']:%d %b %Y} – "
+            f"{position['close_date']:%d %b %Y}  ·  net profit {profit:+,.2f} € "
+            f"({len(records)} cashflows)"
+        )
+        return title, records
+
+
 def build_section(section: dict) -> dcc.Tab:
     """Top-level navigation item holding the row of tabs of one section."""
     tabs = section["tabs"]
@@ -1727,6 +2221,7 @@ _register_callbacks()
 _register_yearly_callbacks()
 _register_transactions_callbacks()
 _register_portfolio_callbacks()
+_register_sold_callbacks()
 
 
 def main() -> None:
