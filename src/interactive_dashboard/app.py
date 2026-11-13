@@ -1,6 +1,9 @@
 """Interactive personal-finance dashboard (Plotly Dash).
 
-Tabs: Expenses, Income, Cashflow. Each tab lets you freely pick a month range
+The top-level navigation has two sections: Cashflow (Expenses, Income,
+Cashflow, Yearly and Transactions tabs) and Investment (Portfolio tab).
+
+Expenses, Income, Cashflow: each tab lets you freely pick a month range
 (slider + presets), shows monthly bars with the period average, and — for
 Expenses/Income — drills into per-category spend when you click a month, plus the
 average spend per category over the selected period.
@@ -33,11 +36,11 @@ from dash import (
     html,
     no_update,
 )
-from dash.dash_table.Format import Format, Group, Scheme, Symbol
+from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 
 from . import config, figures
 from .data import FinanceData, load_finance_data
-from .portfolio import PortfolioData, load_portfolio_data
+from .portfolio import GROUP_ORDER, PortfolioData, load_portfolio_data
 
 C = config.COLORS
 
@@ -57,39 +60,52 @@ YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 
 PORTFOLIO: PortfolioData = load_portfolio_data()
 
-# Tab registry — add a dict here to introduce a new tab later.
-# ``layout`` selects how the tab is rendered: "series" = monthly bars + range
-# slider; "yearly" = calendar-year totals + category comparisons;
+# Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
+# later. Each section is a top-level navigation item holding its own row of
+# tabs. ``layout`` selects how a tab is rendered: "series" = monthly bars +
+# range slider; "yearly" = calendar-year totals + category comparisons;
 # "portfolio" = positions table + aggregate KPI cards; "transactions" = table
 # of all transactions.
-TABS = [
+SECTIONS = [
     {
-        "kind": "expenses",
-        "label": "Expenses",
-        "layout": "series",
-        "has_categories": True,
-    },
-    {
-        "kind": "income",
-        "label": "Income",
-        "layout": "series",
-        "has_categories": True,
-    },
-    {
-        "kind": "cashflow",
+        "key": "cashflow-section",
         "label": "Cashflow",
-        "layout": "series",
-        "has_categories": False,
+        "tabs": [
+            {
+                "kind": "expenses",
+                "label": "Expenses",
+                "layout": "series",
+                "has_categories": True,
+            },
+            {
+                "kind": "income",
+                "label": "Income",
+                "layout": "series",
+                "has_categories": True,
+            },
+            {
+                "kind": "cashflow",
+                "label": "Cashflow",
+                "layout": "series",
+                "has_categories": False,
+            },
+            {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
+            {
+                "kind": "transactions",
+                "label": "Transactions",
+                "layout": "transactions",
+            },
+        ],
     },
-    {"kind": "yearly", "label": "Yearly", "layout": "yearly"},
     {
-        "kind": "transactions",
-        "label": "Transactions",
-        "layout": "transactions",
+        "key": "investment-section",
+        "label": "Investment",
+        "tabs": [
+            {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
+        ],
     },
-    {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
 ]
-KINDS = [t["kind"] for t in TABS]
+TABS = [tab for section in SECTIONS for tab in section["tabs"]]
 
 
 # ---------------------------------------------------------------------------
@@ -888,16 +904,37 @@ _PERCENT = Format(
     symbol=Symbol.yes,
     symbol_suffix=" %",
 )
-_SHARES = Format(group=Group.yes, precision=2, scheme=Scheme.fixed)
+# Significant digits rather than fixed decimals: crypto quantities and prices
+# span from fractions of a cent / satoshi to tens of thousands.
+_QUANTITY = Format(
+    group=Group.yes,
+    precision=6,
+    scheme=Scheme.decimal_or_exponent,
+    trim=Trim.yes,
+)
+_PRICE = Format(
+    group=Group.yes,
+    precision=6,
+    scheme=Scheme.decimal_or_exponent,
+    trim=Trim.yes,
+    symbol=Symbol.yes,
+    symbol_suffix=" €",
+)
 
 _PORTFOLIO_TABLE_COLUMNS = [
     {"name": "Group", "id": "group"},
     {"name": "Name", "id": "name"},
     {"name": "Symbol", "id": "symbol"},
     {"name": "ISIN", "id": "isin"},
+    {"name": "Depot / Exchange", "id": "exchange"},
     {"name": "Ccy", "id": "currency"},
-    {"name": "Shares", "id": "shares", "type": "numeric", "format": _SHARES},
-    {"name": "Price", "id": "price", "type": "numeric", "format": _MONEY},
+    {
+        "name": "Quantity",
+        "id": "shares",
+        "type": "numeric",
+        "format": _QUANTITY,
+    },
+    {"name": "Price", "id": "price", "type": "numeric", "format": _PRICE},
     {
         "name": "Investment",
         "id": "investment",
@@ -912,8 +949,19 @@ _PORTFOLIO_TABLE_COLUMNS = [
         "type": "numeric",
         "format": _PERCENT,
     },
+    {
+        "name": "Return p.a.",
+        "id": "annual_return",
+        "type": "numeric",
+        "format": _PERCENT,
+    },
     {"name": "As of", "id": "as_of"},
 ]
+_ANNUAL_RETURN_HINT = (
+    "Money-weighted average annual return (XIRR): accounts for when each buy, "
+    "sale and dividend happened, valuing what's still held at today's price. "
+    "Blank for coins bought mostly by swapping other coins (no EUR price)."
+)
 
 
 def _portfolio_group_card(
@@ -963,9 +1011,37 @@ def _portfolio_group_card(
                     "marginTop": "2px",
                 },
             ),
+            _annual_return_line(row["annual_return"]),
         ],
         flex="1",
         minWidth="230px",
+    )
+
+
+def _annual_return_line(annual_return: float) -> html.Div:
+    """'+13.4 % per year' with the XIRR explained on hover."""
+    if pd.isna(annual_return):
+        text, color = "—", C["text_muted"]
+    else:
+        text = f"{annual_return:+.1f} %"
+        color = C["positive"] if annual_return >= 0 else C["negative"]
+    return html.Div(
+        [
+            html.Span(
+                text,
+                style={
+                    "color": color,
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                },
+            ),
+            html.Span(
+                " per year",
+                style={"color": C["text_muted"], "fontSize": "13px"},
+            ),
+        ],
+        title=_ANNUAL_RETURN_HINT,
+        style={"marginTop": "2px", "cursor": "help"},
     )
 
 
@@ -974,7 +1050,7 @@ def build_portfolio_tab(tab: dict) -> dcc.Tab:
     as_of = PORTFOLIO.as_of_by_group()
 
     cards = [_portfolio_group_card("Total Portfolio", agg.loc["All"], None)]
-    for grp in ("ETFs", "Stocks"):
+    for grp in GROUP_ORDER:
         if grp in agg.index:
             cards.append(
                 _portfolio_group_card(grp, agg.loc[grp], as_of.get(grp))
@@ -1010,12 +1086,13 @@ _PORTFOLIO_RECORDS = _portfolio_records()
 
 _PORTFOLIO_DROPDOWNS = [
     _DropdownSpec("group", "Group", "190px"),
+    _DropdownSpec("exchange", "Depot / Exchange", "220px"),
     _DropdownSpec("name", "Name", "380px", searchable=True),
 ]
 
 
 def _portfolio_controls() -> html.Div:
-    """Group/name dropdowns, gainers/losers filter and reset button."""
+    """Group/depot/name dropdowns, gainers/losers filter and reset button."""
     performance = _labelled_control(
         "Show",
         _radio(
@@ -1112,34 +1189,22 @@ def _portfolio_table() -> dash_table.DataTable:
                 "name",
                 "symbol",
                 "isin",
+                "exchange",
                 "currency",
                 "as_of",
             )
         ],
         style_data_conditional=[
             {
-                "if": {"filter_query": "{gain} < 0", "column_id": "gain"},
-                "color": C["negative"],
-            },
-            {
-                "if": {"filter_query": "{gain} >= 0", "column_id": "gain"},
-                "color": C["positive"],
-            },
-            {
-                "if": {
-                    "filter_query": "{gain_pct} < 0",
-                    "column_id": "gain_pct",
-                },
-                "color": C["negative"],
-            },
-            {
-                "if": {
-                    "filter_query": "{gain_pct} >= 0",
-                    "column_id": "gain_pct",
-                },
-                "color": C["positive"],
-            },
+                "if": {"filter_query": f"{{{col}}} {op} 0", "column_id": col},
+                "color": color,
+            }
+            for col in ("gain", "gain_pct", "annual_return")
+            for op, color in (("<", C["negative"]), (">=", C["positive"]))
         ],
+        tooltip_header={"annual_return": _ANNUAL_RETURN_HINT},
+        tooltip_delay=300,
+        tooltip_duration=None,
     )
 
 
@@ -1295,6 +1360,39 @@ def build_transactions_tab(tab: dict) -> dcc.Tab:
     return _tab_shell(tab["label"], tab["kind"], [table])
 
 
+def build_section(section: dict) -> dcc.Tab:
+    """Top-level navigation item holding the row of tabs of one section."""
+    tabs = section["tabs"]
+    return dcc.Tab(
+        label=section["label"],
+        value=section["key"],
+        children=dcc.Tabs(
+            id=f"{section['key']}-tabs",
+            value=tabs[0]["kind"],
+            children=[build_tab(t) for t in tabs],
+            style={"marginTop": "10px"},
+        ),
+        style={
+            "backgroundColor": C["background"],
+            "color": C["text_muted"],
+            "border": "none",
+            "borderBottom": f"2px solid {C['grid']}",
+            "fontSize": "17px",
+            "fontWeight": "600",
+            "padding": "10px 20px",
+        },
+        selected_style={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "border": "none",
+            "borderBottom": f"3px solid {C['average']}",
+            "fontSize": "17px",
+            "fontWeight": "600",
+            "padding": "10px 20px",
+        },
+    )
+
+
 def build_layout() -> html.Div:
     return html.Div(
         [
@@ -1304,9 +1402,9 @@ def build_layout() -> html.Div:
             ),
             dcc.Tabs(
                 id="main-tabs",
-                value=KINDS[0],
-                children=[build_tab(t) for t in TABS],
-                style={"marginTop": "8px"},
+                value=SECTIONS[0]["key"],
+                children=[build_section(s) for s in SECTIONS],
+                style={"marginTop": "8px", "maxWidth": "480px"},
             ),
         ],
         style={
