@@ -314,3 +314,115 @@ def category_delta_figure(
 
 def _comparison_height(n_categories: int) -> int:
     return max(420, 34 * n_categories + 130)
+
+
+def cash_liquidity_figure(liquidity: pd.DataFrame) -> go.Figure:
+    """Stacked monthly bars of available (accounts) and bound (fixed-term
+    deposits) cash, with liabilities below zero once anything is owed; the
+    projected months after the current one are faded."""
+    if liquidity.empty:
+        return _empty("No cash balances recorded yet")
+    # The dates are month ends; label the bars by month on a category axis so
+    # they don't sit on the next month's tick.
+    months = [d.strftime("%b %Y") for d in liquidity.index]
+    projected = liquidity["is_projection"].tolist()
+    opacity = [0.45 if p else 1.0 for p in projected]
+
+    series = [
+        ("available", "Available", C["cash_available"]),
+        ("bound", "Bound (fixed-term)", C["cash_bound"]),
+    ]
+    if liquidity["liabilities"].fillna(0.0).ne(0).any():
+        series.append(("liabilities", "Liabilities", C["negative"]))
+
+    fig = go.Figure()
+    for column, name, color in series:
+        fig.add_bar(
+            x=months,
+            y=liquidity[column].fillna(0.0),
+            name=name,
+            marker=dict(color=color, opacity=opacity),
+            hovertemplate=f"{name}: %{{y:,.0f}} €<extra></extra>",
+        )
+    if any(projected):
+        fig.add_vrect(
+            x0=projected.index(True) - 0.5,
+            x1=len(months) - 0.5,
+            fillcolor=C["grid"],
+            opacity=0.15,
+            line_width=0,
+            annotation_text="Projection: balances unchanged, deposits paid out",
+            annotation_position="top left",
+            annotation_font_color=C["text_muted"],
+        )
+    _base_layout(fig, height=400)
+    fig.update_layout(
+        # relative: negative liabilities stack downwards from zero
+        barmode="relative",
+        legend=dict(orientation="h", y=1.18, x=0, bgcolor="rgba(0,0,0,0)"),
+        margin=dict(l=60, r=20, t=80, b=40),
+    )
+    fig.update_xaxes(type="category")
+    fig.update_yaxes(title_text="€")
+    return fig
+
+
+def term_deposit_timeline_figure(
+    deposits: pd.DataFrame, today: pd.Timestamp
+) -> go.Figure:
+    """One horizontal bar per running/upcoming fixed-term deposit from its
+    start to its end date, with a line at today."""
+    if deposits.empty:
+        return _empty("No running fixed-term deposits")
+    deposits = deposits.sort_values("end_date", ascending=False)
+    labels = [
+        f"{row.bank}  ·  {row.principal:,.0f} €"
+        for row in deposits.itertuples()
+    ]
+    duration_ms = (
+        deposits["end_date"] - deposits["start_date"]
+    ).dt.total_seconds() * 1000
+    texts = [
+        f"{row.rate_pa * 100:.2f} %  ·  until {row.end_date:%d %b %Y}"
+        for row in deposits.itertuples()
+    ]
+
+    fig = go.Figure()
+    fig.add_bar(
+        y=labels,
+        x=duration_ms,
+        base=deposits["start_date"],
+        orientation="h",
+        marker_color=C["cash_bound"],
+        text=texts,
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(color="#ffffff", size=12),
+        customdata=deposits[["start_date", "end_date"]],
+        hovertemplate=(
+            "%{y}<br>%{customdata[0]|%d %b %Y} – %{customdata[1]|%d %b %Y}"
+            "<extra></extra>"
+        ),
+    )
+    fig.add_shape(
+        type="line",
+        x0=today,
+        x1=today,
+        y0=0,
+        y1=1,
+        yref="paper",
+        line=dict(color=C["selected"], width=2, dash="dash"),
+    )
+    fig.add_annotation(
+        x=today,
+        y=1,
+        yref="paper",
+        yanchor="bottom",
+        text="Today",
+        showarrow=False,
+        font=dict(color=C["selected"]),
+    )
+    _base_layout(fig, height=max(200, 70 * len(deposits) + 100))
+    fig.update_layout(showlegend=False, hovermode="closest", bargap=0.35)
+    fig.update_xaxes(type="date")
+    return fig

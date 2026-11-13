@@ -20,6 +20,11 @@ The Sold Positions tab lists every sold ETF/stock position with what it was
 bought and sold for, its dividends and costs, net profit and return; clicking a
 position lists its single cashflows.
 
+The Balancesheet tab (Balance Sheet section) shows the balance and interest
+rate of every account, the running fixed-term deposits and how long they keep
+money bound, the liabilities (credit cards, loans), and all cash split into
+available and bound per month.
+
 Run with::
 
     python -m src.interactive_dashboard.app
@@ -44,6 +49,7 @@ from dash import (
 from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 
 from . import config, figures
+from .cash import STATUS_LABELS, STATUS_MATURED, CashData, load_cash_data
 from .data import FinanceData, load_finance_data
 from .portfolio import GROUP_ORDER, PortfolioData, load_portfolio_data
 from .sold_positions import (
@@ -70,13 +76,15 @@ YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 
 PORTFOLIO: PortfolioData = load_portfolio_data()
 SOLD: SoldPositionsData = load_sold_positions_data()
+CASH: CashData | None = load_cash_data()
 
 # Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
 # later. Each section is a top-level navigation item holding its own row of
 # tabs. ``layout`` selects how a tab is rendered: "series" = monthly bars +
 # range slider; "yearly" = calendar-year totals + category comparisons;
 # "portfolio" = positions table + aggregate KPI cards; "transactions" = table
-# of all transactions; "sold" = sold positions table + KPI cards + drill-down.
+# of all transactions; "sold" = sold positions table + KPI cards + drill-down;
+# "cash" = account balances, fixed-term deposits and available vs. bound cash.
 SECTIONS = [
     {
         "key": "cashflow-section",
@@ -115,6 +123,11 @@ SECTIONS = [
             {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
             {"kind": "sold", "label": "Sold Positions", "layout": "sold"},
         ],
+    },
+    {
+        "key": "balance-section",
+        "label": "Balance Sheet",
+        "tabs": [{"kind": "cash", "label": "Balancesheet", "layout": "cash"}],
     },
 ]
 TABS = [tab for section in SECTIONS for tab in section["tabs"]]
@@ -299,6 +312,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_transactions_tab(tab)
     if tab["layout"] == "sold":
         return build_sold_tab(tab)
+    if tab["layout"] == "cash":
+        return build_cash_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -1854,6 +1869,307 @@ def _register_sold_callbacks() -> None:
         return title, records
 
 
+# ---------------------------------------------------------------------------
+# Cash tab (account balances, fixed-term deposits, available vs. bound cash)
+# ---------------------------------------------------------------------------
+_RATE = Format(precision=2, scheme=Scheme.percentage)
+_STALE_SUFFIX = "  (outdated)"
+
+_CASH_ACCOUNT_COLUMNS = [
+    {"name": "Account", "id": "name"},
+    {"name": "Bank", "id": "bank"},
+    {"name": "Platform", "id": "platform"},
+    {"name": "Type", "id": "type"},
+    {"name": "Balance", "id": "balance", "type": "numeric", "format": _MONEY},
+    {"name": "Interest", "id": "rate_pa", "type": "numeric", "format": _RATE},
+    {"name": "Rate valid until", "id": "rate_valid_until"},
+    {"name": "Balance as of", "id": "balance_date"},
+]
+_CASH_DEPOSIT_COLUMNS = [
+    {"name": "Bank", "id": "bank"},
+    {"name": "Platform", "id": "platform"},
+    {"name": "Name", "id": "name"},
+    {"name": "Amount", "id": "principal", "type": "numeric", "format": _MONEY},
+    {"name": "Interest", "id": "rate_pa", "type": "numeric", "format": _RATE},
+    {"name": "Start", "id": "start_date"},
+    {"name": "End", "id": "end_date"},
+    {"name": "Days left", "id": "days_remaining", "type": "numeric"},
+    {
+        "name": "Progress",
+        "id": "progress_pct",
+        "type": "numeric",
+        "format": _PERCENT,
+    },
+    {"name": "Status", "id": "status"},
+]
+_CASH_TEXT_COLUMNS = (
+    "name",
+    "bank",
+    "platform",
+    "type",
+    "rate_valid_until",
+    "balance_date",
+    "start_date",
+    "end_date",
+    "status",
+)
+
+
+def _cash_table(
+    table_id: str, columns: list, records: list, extra_styles: list
+):
+    return dash_table.DataTable(
+        id=table_id,
+        columns=columns,
+        data=records,
+        sort_action="native",
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header={
+            "backgroundColor": C["background"],
+            "color": C["text"],
+            "fontWeight": "600",
+            "border": "none",
+            "borderBottom": f"2px solid {C['grid']}",
+        },
+        style_cell={
+            "backgroundColor": C["panel"],
+            "color": C["text"],
+            "border": "none",
+            "borderBottom": f"1px solid {C['grid']}",
+            "padding": "8px 10px",
+            "fontFamily": "Segoe UI, Arial, sans-serif",
+            "fontSize": "13px",
+            "textAlign": "right",
+        },
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in _CASH_TEXT_COLUMNS
+        ],
+        style_data_conditional=extra_styles,
+    )
+
+
+def _iso(values: pd.Series) -> pd.Series:
+    return values.dt.strftime("%Y-%m-%d").fillna("")
+
+
+def _cash_account_records(accounts: pd.DataFrame) -> list[dict]:
+    df = accounts.copy()
+    df["platform"] = df["platform"].fillna("")
+    df["rate_valid_until"] = _iso(df["rate_valid_until"])
+    df["balance_date"] = _iso(df["balance_date"]) + df["is_stale"].map(
+        {True: _STALE_SUFFIX, False: ""}
+    )
+    return df[[c["id"] for c in _CASH_ACCOUNT_COLUMNS]].to_dict("records")
+
+
+def _cash_deposit_records(cash: CashData) -> list[dict]:
+    df = cash.deposits.copy()
+    df["platform"] = df["platform"].fillna("")
+    df["start_date"] = _iso(df["start_date"])
+    df["end_date"] = _iso(df["end_date"])
+    df["status"] = df["status"].map(STATUS_LABELS).fillna(df["status"])
+    return df[[c["id"] for c in _CASH_DEPOSIT_COLUMNS]].to_dict("records")
+
+
+def _progress_bar_styles(progress: pd.Series) -> list[dict]:
+    """A data bar behind every progress value (tables cannot draw bars)."""
+    styles = []
+    for pct in sorted(set(progress.dropna())):
+        styles.append(
+            {
+                "if": {
+                    "filter_query": f"{{progress_pct}} = {pct}",
+                    "column_id": "progress_pct",
+                },
+                "background": (
+                    f"linear-gradient(90deg, {C['cash_bound']}66 0%, "
+                    f"{C['cash_bound']}66 {pct}%, transparent {pct}%, "
+                    "transparent 100%)"
+                ),
+            }
+        )
+    return styles
+
+
+def _cash_kpi(title: str, value: str, subtitle: str, color: str | None = None):
+    return _card(
+        [
+            html.Div(
+                title, style={"color": C["text_muted"], "fontSize": "15px"}
+            ),
+            html.Div(
+                value,
+                style={
+                    "color": color or C["text"],
+                    "fontSize": "30px",
+                    "fontWeight": "600",
+                    "marginTop": "6px",
+                },
+            ),
+            html.Div(
+                subtitle,
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "13px",
+                    "marginTop": "4px",
+                },
+            ),
+        ],
+        flex="1",
+        minWidth="200px",
+    )
+
+
+def _cash_kpis(cash: CashData, today: pd.Timestamp) -> html.Div:
+    available, bound, owed = cash.available, cash.bound, cash.owed
+    as_of = cash.as_of
+    n_running = len(cash.running_deposits)
+    n_liabilities = len(cash.liabilities)
+    cards = [
+        _cash_kpi(
+            "Net cash",
+            f"{cash.net:,.0f} €",
+            f"{available + bound:,.0f} € cash − {abs(owed):,.0f} € owed"
+            + (f"  ·  as of {as_of:%d %b %Y}" if as_of is not None else ""),
+        ),
+        _cash_kpi(
+            "Available",
+            f"{available:,.0f} €",
+            f"on {len(cash.accounts)} accounts",
+            C["cash_available"],
+        ),
+        _cash_kpi(
+            "Bound",
+            f"{bound:,.0f} €",
+            f"in {n_running} fixed-term deposit{'s' if n_running != 1 else ''}",
+            C["cash_bound"],
+        ),
+        _cash_kpi(
+            "Liabilities",
+            f"{abs(owed):,.0f} €",
+            f"on {n_liabilities} credit card / loan account"
+            + ("s" if n_liabilities != 1 else ""),
+            C["negative"] if owed < 0 else None,
+        ),
+    ]
+    nxt = cash.next_maturity()
+    if nxt is not None:
+        days = (nxt["end_date"] - today).days
+        cards.append(
+            _cash_kpi(
+                "Next maturity",
+                f"{nxt['principal']:,.0f} €",
+                f"{nxt['bank']}  ·  {nxt['end_date']:%d %b %Y}  ·  in {days} days",
+            )
+        )
+    rate = cash.weighted_rate()
+    cards.append(
+        _cash_kpi(
+            "Average interest rate",
+            "—" if pd.isna(rate) else f"{rate * 100:.2f} %",
+            "of all cash, weighted by amount",
+        )
+    )
+    return html.Div(cards, style={"display": "flex", "flexWrap": "wrap"})
+
+
+def build_cash_tab(tab: dict) -> dcc.Tab:
+    if CASH is None:
+        body = [
+            _card(
+                "No cash data found. Run the datahub to create the "
+                "transform_cash__* tables from source_cash_balance_sheet.ods.",
+                color=C["text_muted"],
+            )
+        ]
+        return _tab_shell(tab["label"], tab["kind"], body)
+
+    today = pd.Timestamp.today().normalize()
+    open_deposits = CASH.deposits[CASH.deposits["status"] != STATUS_MATURED]
+    stale_style = [
+        {
+            "if": {
+                "filter_query": f'{{balance_date}} contains "{_STALE_SUFFIX.strip()}"',
+                "column_id": "balance_date",
+            },
+            "color": C["negative"],
+        }
+    ]
+    accounts = _card(
+        [
+            _section_title("Accounts"),
+            _cash_table(
+                "cash-accounts-table",
+                _CASH_ACCOUNT_COLUMNS,
+                _cash_account_records(CASH.accounts),
+                stale_style,
+            ),
+        ]
+    )
+    liabilities = _card(
+        [
+            _section_title("Liabilities"),
+            _cash_table(
+                "cash-liabilities-table",
+                _CASH_ACCOUNT_COLUMNS,
+                _cash_account_records(CASH.liabilities),
+                stale_style
+                + [
+                    {
+                        "if": {
+                            "filter_query": "{balance} < 0",
+                            "column_id": "balance",
+                        },
+                        "color": C["negative"],
+                    }
+                ],
+            ),
+        ]
+    )
+    deposits = _card(
+        [
+            _section_title("Fixed-term deposits"),
+            _cash_table(
+                "cash-deposits-table",
+                _CASH_DEPOSIT_COLUMNS,
+                _cash_deposit_records(CASH),
+                _progress_bar_styles(CASH.deposits["progress_pct"])
+                + [
+                    {
+                        "if": {"filter_query": '{status} = "Matured"'},
+                        "color": C["text_muted"],
+                    }
+                ],
+            ),
+            dcc.Graph(
+                id="cash-deposit-timeline",
+                figure=figures.term_deposit_timeline_figure(
+                    open_deposits, today
+                ),
+                config={"displayModeBar": False},
+                style={"marginTop": "14px"},
+            ),
+        ]
+    )
+    liquidity = _card(
+        [
+            _section_title("Available vs. bound cash"),
+            dcc.Graph(
+                id="cash-liquidity",
+                figure=figures.cash_liquidity_figure(CASH.liquidity),
+                config={"displayModeBar": False},
+            ),
+        ]
+    )
+    return _tab_shell(
+        tab["label"],
+        tab["kind"],
+        [_cash_kpis(CASH, today), accounts, deposits, liabilities, liquidity],
+    )
+
+
 def build_section(section: dict) -> dcc.Tab:
     """Top-level navigation item holding the row of tabs of one section."""
     tabs = section["tabs"]
@@ -1898,7 +2214,7 @@ def build_layout() -> html.Div:
                 id="main-tabs",
                 value=SECTIONS[0]["key"],
                 children=[build_section(s) for s in SECTIONS],
-                style={"marginTop": "8px", "maxWidth": "480px"},
+                style={"marginTop": "8px", "maxWidth": "720px"},
             ),
         ],
         style={
