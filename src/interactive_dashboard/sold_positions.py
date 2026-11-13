@@ -49,11 +49,16 @@ class SoldPositionsData:
     positions: pd.DataFrame  # one tidy row per sold position
     flows: pd.DataFrame  # [position_id, date, type, amount]
 
-    def group_aggregates(self) -> pd.DataFrame:
-        """Money totals, ROI and return per year per group, plus 'All'."""
-        rows = {"All": self.positions}
+    def group_aggregates(self, ids: list[str] | None = None) -> pd.DataFrame:
+        """Money totals, ROI and return per year per group, plus 'All'; only of
+        the positions in ``ids`` if given (e.g. those left by table filters).
+        Groups without any position are left out, 'All' is always there."""
+        positions = self.positions
+        if ids is not None:
+            positions = positions[positions["id"].isin(ids)]
+        rows = {"All": positions}
         for grp in SOLD_GROUP_ORDER:
-            sub = self.positions[self.positions["group"] == grp]
+            sub = positions[positions["group"] == grp]
             if not sub.empty:
                 rows[grp] = sub
         return pd.DataFrame(

@@ -1481,7 +1481,21 @@ def _signed_color(amount: float) -> str:
     return C["positive"] if amount >= 0 else C["negative"]
 
 
-def _sold_group_card(title: str, row: pd.Series) -> html.Div:
+def _pct_span(value: float, size: str = "15px", **attrs) -> html.Span:
+    """'+5.4 %' in green/red, or a muted '—' when there is no value."""
+    missing = pd.isna(value)
+    return html.Span(
+        "—" if missing else f"{value:+.1f} %",
+        style={
+            "color": C["text_muted"] if missing else _signed_color(value),
+            "fontSize": size,
+            "fontWeight": "600",
+        },
+        **attrs,
+    )
+
+
+def _sold_group_card(title: str, row: pd.Series, subtitle: str) -> html.Div:
     profit = float(row["net_profit"])
     muted = {"color": C["text_muted"], "fontSize": "13px"}
     plain = {"color": C["text"], "fontSize": "13px"}
@@ -1489,15 +1503,13 @@ def _sold_group_card(title: str, row: pd.Series) -> html.Div:
     def line(*parts, **style):
         return html.Div(list(parts), style={"marginTop": "3px", **style})
 
-    annual = row["annual_return_pct"]
-    annual_text = "—" if pd.isna(annual) else f"{annual:+.1f} %"
     return _card(
         [
             html.Div(
                 title, style={"color": C["text_muted"], "fontSize": "15px"}
             ),
             html.Div(
-                f"{int(row['n_positions'])} positions sold",
+                subtitle,
                 style={"color": C["text_muted"], "fontSize": "12px"},
             ),
             html.Div(
@@ -1511,26 +1523,9 @@ def _sold_group_card(title: str, row: pd.Series) -> html.Div:
                 },
             ),
             line(
-                html.Span(
-                    f"{row['roi_pct']:+.1f} %",
-                    style={
-                        "color": _signed_color(row["roi_pct"]),
-                        "fontSize": "15px",
-                        "fontWeight": "600",
-                    },
-                ),
+                _pct_span(row["roi_pct"]),
                 html.Span(" ROI  ·  ", style=muted),
-                html.Span(
-                    annual_text,
-                    style={
-                        "color": C["text_muted"]
-                        if pd.isna(annual)
-                        else _signed_color(annual),
-                        "fontSize": "15px",
-                        "fontWeight": "600",
-                    },
-                    title=_SOLD_ANNUAL_HINT,
-                ),
+                _pct_span(row["annual_return_pct"], title=_SOLD_ANNUAL_HINT),
                 html.Span(" per year", style=muted),
                 title=_SOLD_ROI_HINT,
             ),
@@ -1756,13 +1751,42 @@ def _sold_flows_card() -> html.Div:
     )
 
 
-def build_sold_tab(tab: dict) -> dcc.Tab:
-    agg = SOLD.group_aggregates()
-    cards = [_sold_group_card("All sold positions", agg.loc["All"])]
+def _sold_kpi_cards(rows: list[dict] | None) -> list[html.Div]:
+    """KPI cards (all + per group) of the positions left by the table
+    filters; ``rows`` None means unfiltered."""
+    ids = None if rows is None else [r["id"] for r in rows]
+    agg = SOLD.group_aggregates(ids)
+    total = len(_SOLD_RECORDS)
+    filtered = ids is not None and len(ids) < total
+
+    def subtitle(n: int) -> str:
+        return f"{n} positions sold" + ("  ·  filtered" if filtered else "")
+
+    all_row = agg.loc["All"]
+    cards = [
+        _sold_group_card(
+            "Filtered sold positions" if filtered else "All sold positions",
+            all_row,
+            f"{int(all_row['n_positions'])} of {total} positions"
+            if filtered
+            else subtitle(total),
+        )
+    ]
     for grp in SOLD_GROUP_ORDER:
         if grp in agg.index:
-            cards.append(_sold_group_card(grp, agg.loc[grp]))
-    kpi_row = html.Div(cards, style={"display": "flex", "flexWrap": "wrap"})
+            row = agg.loc[grp]
+            cards.append(
+                _sold_group_card(grp, row, subtitle(int(row["n_positions"])))
+            )
+    return cards
+
+
+def build_sold_tab(tab: dict) -> dcc.Tab:
+    kpi_row = html.Div(
+        _sold_kpi_cards(None),
+        id="sold-kpis",
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
 
     table = _card(
         [
@@ -1791,13 +1815,15 @@ def _register_sold_callbacks() -> None:
         extra_inputs={"sold-performance": "all", "sold-rebought": "all"},
     )
 
-    # Totals of exactly what is visible after all filters (all pages).
+    # Summary line and KPI cards of exactly what is visible after all
+    # filters (all pages).
     @app.callback(
         Output("sold-summary", "children"),
+        Output("sold-kpis", "children"),
         Input("sold-table", "derived_virtual_data"),
     )
     def _update_summary(rows):
-        return _sold_summary(rows)
+        return _sold_summary(rows), _sold_kpi_cards(rows)
 
     # Clicking any cell of a position lists that position's cashflows.
     @app.callback(
