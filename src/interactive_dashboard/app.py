@@ -970,6 +970,7 @@ _PORTFOLIO_TABLE_COLUMNS = [
         "type": "numeric",
         "format": _MONEY,
     },
+    {"name": "Costs", "id": "costs", "type": "numeric", "format": _MONEY},
     {"name": "Value", "id": "value", "type": "numeric", "format": _MONEY},
     {"name": "Gain", "id": "gain", "type": "numeric", "format": _MONEY},
     {
@@ -1026,6 +1027,14 @@ def _portfolio_group_card(
                     ),
                     html.Span(
                         f"{row['investment']:,.0f} €",
+                        style={"color": C["text"], "fontSize": "13px"},
+                    ),
+                    html.Span(
+                        "  ·  Costs ",
+                        style={"color": C["text_muted"], "fontSize": "13px"},
+                    ),
+                    html.Span(
+                        f"{row['costs']:,.0f} €",
                         style={"color": C["text"], "fontSize": "13px"},
                     ),
                 ],
@@ -1156,10 +1165,10 @@ def _filter_portfolio(
 
 def _portfolio_summary(rows: list[dict] | None) -> list:
     rows = rows or []
-    df = pd.DataFrame(rows, columns=["value", "investment", "gain"])
-    value, invested, gain = (
+    df = pd.DataFrame(rows, columns=["value", "investment", "costs", "gain"])
+    value, invested, costs, gain = (
         pd.to_numeric(df[c], errors="coerce").sum()
-        for c in ("value", "investment", "gain")
+        for c in ("value", "investment", "costs", "gain")
     )
     pct = gain / invested * 100 if invested else 0.0
     gain_color = C["positive"] if gain >= 0 else C["negative"]
@@ -1173,6 +1182,8 @@ def _portfolio_summary(rows: list[dict] | None) -> list:
         html.Span(f"{value:,.0f} €", style=strong),
         "  ·  Invested ",
         html.Span(f"{invested:,.0f} €", style=strong),
+        "  ·  Costs ",
+        html.Span(f"{costs:,.0f} €", style=strong),
         "  ·  Gain ",
         html.Span(
             f"{gain:+,.0f} € ({pct:+.1f} %)",

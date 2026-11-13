@@ -38,6 +38,12 @@ portfolio value. It is deliberately independent of the other `src` modules: it
 reads the pre-aggregated cashflow/portfolio CSVs directly and builds its own Dash
 app. This is why it lives at the top of `src` rather than inside `dashboard`.
 
+The **Investment → Portfolio** tab shows every open ETF, stock, Riester and crypto
+position with what was invested, the costs (order costs and fees), current value,
+gain and return p.a., with a KPI card per group. The Riester contract has no price:
+its value is maintained by hand in the datahub, and its costs are the fees paid
+out of the contract (already part of the value, so not subtracted from the gain).
+
 The **Investment → Sold Positions** tab lists every sold ETF/stock position with
 what it was bought and sold for, dividends, order and ongoing costs, net profit,
 ROI and return p.a.; clicking a position lists its single cashflows. It reads
