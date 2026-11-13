@@ -4,7 +4,8 @@ Two sources from the transform layer, both with one row per open position and
 its current price/value and the amount invested:
 
 - ``transform_portfolio__value.csv`` — ETFs and stocks with master data (ISIN,
-  symbol, type, currency), grouped via ``security_type``.
+  symbol, type, currency), grouped via ``security_type``, plus the Riester
+  contract (``security_type`` Riester, value maintained by hand, no price).
 - ``transform_crypto__portfolio_value.csv`` — coins (and EUR cash) per
   exchange or wallet they are held on.
 
@@ -26,9 +27,9 @@ from . import config
 from .returns import Returns, compute_returns
 
 # Map the raw security_type to a clean, English group label.
-GROUP_LABELS = {"ETF": "ETFs", "Aktie": "Stocks"}
+GROUP_LABELS = {"ETF": "ETFs", "Aktie": "Stocks", "Riester": "Riester"}
 CRYPTO_GROUP = "Crypto"
-GROUP_ORDER = ["ETFs", "Stocks", CRYPTO_GROUP]
+GROUP_ORDER = ["ETFs", "Stocks", "Riester", CRYPTO_GROUP]
 
 # Depot / exchange / wallet ids whose display name isn't just capitalized.
 EXCHANGE_LABELS = {
@@ -48,6 +49,8 @@ _RENAME = {
     "price": "price",
     "value": "value",
     "total_investment": "investment",
+    # order costs / fees (Riester: fees already paid out of the contract)
+    "total_cost": "costs",
     "value_gained": "gain",
     "value_gained_pct": "gain_pct",
     "symbol": "symbol",
@@ -75,6 +78,7 @@ DISPLAY_COLUMNS = [
     "shares",
     "price",
     "investment",
+    "costs",
     "value",
     "gain",
     "gain_pct",
@@ -82,7 +86,15 @@ DISPLAY_COLUMNS = [
     "as_of",
 ]
 
-_NUMERIC = ["shares", "price", "value", "investment", "gain", "gain_pct"]
+_NUMERIC = [
+    "shares",
+    "price",
+    "value",
+    "investment",
+    "costs",
+    "gain",
+    "gain_pct",
+]
 
 
 @dataclass
@@ -91,8 +103,9 @@ class PortfolioData:
     returns: Returns  # money-weighted annual returns (see returns.py)
 
     def group_aggregates(self) -> pd.DataFrame:
-        """Value/investment/gain totals per group plus an 'All' total row."""
-        cols = ["value", "investment", "gain"]
+        """Value/investment/costs/gain totals per group plus an 'All' total
+        row."""
+        cols = ["value", "investment", "costs", "gain"]
         by_group = self.positions.groupby("group")[cols].sum()
         total = self.positions[cols].sum().to_frame().T
         total.index = ["All"]
@@ -196,6 +209,8 @@ def load_portfolio_data(
     df["annual_return"] = [
         returns.by_asset.get(key, math.nan) for key in zip(df["group"], asset)
     ]
+    # The Riester contract has no ISIN, only the datahub's internal key.
+    df["isin"] = df["isin"].where(df["group"] != "Riester", "")
 
     rank = {grp: i for i, grp in enumerate(GROUP_ORDER)}
     df = (
