@@ -32,6 +32,11 @@ PORTFOLIO_CASHFLOWS_FILE = "transform_portfolio__cashflows.csv"
 CRYPTO_LEDGER_FILE = "transform_crypto__ledger.csv"
 CRYPTO_TRADES_FILE = "transform_crypto__trades.csv"
 CRYPTO_COINS_FILE = "transform_crypto__coins.csv"
+# Cash: balance per account and month end, fixed-term deposits, and all cash
+# split into available / bound per month (projected until the last maturity).
+CASH_BALANCES_FILE = "transform_cash__balances_monthly.csv"
+CASH_TERM_DEPOSITS_FILE = "transform_cash__term_deposits.csv"
+CASH_LIQUIDITY_FILE = "transform_cash__liquidity_monthly.csv"
 
 CSV_SEP = ";"
 CSV_DECIMAL = ","
@@ -52,6 +57,8 @@ COLORS = {
     "reference": "#8b95a1",  # comparison baseline (past year) bars
     "average": "#29b6f6",  # average reference line (cyan)
     "selected": "#f1c40f",  # highlighted / clicked bar
+    "cash_available": "#2ec4b6",  # cash on accounts (teal)
+    "cash_bound": "#a78bfa",  # cash bound in fixed-term deposits (purple)
 }
 
 # --- Category coloring -------------------------------------------------------

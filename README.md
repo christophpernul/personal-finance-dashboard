@@ -44,6 +44,18 @@ ROI and return p.a.; clicking a position lists its single cashflows. It reads
 `target_portfolio__sold_positions.csv` and `target_portfolio__sold_position_flows.csv`
 from `FINANCE_DATA_DIR`, both computed by the datahub.
 
+The **Balance Sheet → Cash** tab shows where cash lies: KPI cards for total,
+available and bound cash, the next maturity and the average interest rate
+(weighted by amount), a table of all accounts with balance, interest rate and the
+date of the balance (marked *outdated* after 35 days), a table and timeline of the
+fixed-term deposits, and a monthly chart of available vs. bound cash that is
+projected until the last deposit matures. It reads the datahub's
+`transform_cash__balances_monthly.csv`, `transform_cash__term_deposits.csv` and
+`transform_cash__liquidity_monthly.csv` from `FINANCE_TRANSFORM_DIR`, which come
+from the manually maintained `source_cash_balance_sheet.ods`. The tab only shows
+a hint if these files don't exist yet. No interest amounts are shown: received
+interest is part of the income data.
+
 Run it from the repo root:
 
 ```bash
@@ -59,7 +71,7 @@ variables can override its behaviour:
 | `DASH_DEBUG`           | `1`                                                  | Debug mode (`0`/`false` to disable)      |
 | `DASH_RELOAD`          | `0`                                                  | Hot reloader (`1`/`true` to enable)      |
 | `FINANCE_DATA_DIR`     | `D:\SynologyDrive\Finance\data\datahub\target`       | Directory of the cashflow target CSVs    |
-| `FINANCE_TRANSFORM_DIR`| `D:\SynologyDrive\Finance\data\datahub\transform`    | Directory of the portfolio value CSV     |
+| `FINANCE_TRANSFORM_DIR`| `D:\SynologyDrive\Finance\data\datahub\transform`    | Directory of the portfolio value and cash CSVs |
 
 > Both apps default to port `8050`, so run only one at a time — or set
 > `DASH_PORT` on the interactive dashboard to serve them side by side.
