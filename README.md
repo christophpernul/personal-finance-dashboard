@@ -54,9 +54,9 @@ Files each tab reads (all written by the datahub):
 | Tab | Files |
 | --- | --- |
 | Expenses, Income, Cashflow, Yearly, Transactions | `target/target_cashflow__expenses.csv`, `target/target_cashflow__incomes.csv` |
-| Portfolio | `transform/transform_portfolio__value.csv`, `transform/transform_crypto__portfolio_value.csv`; for returns `transform/transform_portfolio__cashflows.csv`, `transform/transform_crypto__ledger.csv`, `transform/transform_crypto__trades.csv`, `transform/transform_crypto__coins.csv` |
+| Portfolio, Allocation | `transform/transform_portfolio__value.csv`, `transform/transform_crypto__portfolio_value.csv`; for returns `transform/transform_portfolio__cashflows.csv`, `transform/transform_crypto__ledger.csv`, `transform/transform_crypto__trades.csv`, `transform/transform_crypto__coins.csv` |
 | Sold Positions | `target/target_portfolio__sold_positions.csv`, `target/target_portfolio__sold_position_flows.csv` |
-| Balancesheet | `transform/transform_cash__balances_monthly.csv`, `transform/transform_cash__term_deposits.csv`, `transform/transform_cash__liquidity_monthly.csv` (if missing, the tab shows a hint and the rest still works) |
+| Balancesheet, Allocation (cash) | `transform/transform_cash__balances_monthly.csv`, `transform/transform_cash__term_deposits.csv`, `transform/transform_cash__liquidity_monthly.csv` (if missing, the tab shows a hint and the rest still works) |
 
 ## Tabs
 
@@ -96,8 +96,30 @@ negative money out (the charts show both as positive bars).
     price in the data and get no return.
   - *As of* — the date of the data (ETFs/stocks: month of the last trade, prices are current;
     Riester: date of the value).
+  - *TER* — total expense ratio per year from the master data (Riester: the fees of the last 12
+    months / value; stocks and crypto have none), *Costs p.a.* = value × TER,
+    *TER costs to date* — estimated ongoing costs since the position was bought: for every month
+    held, the month-end value × TER / 12 (Riester: 0, its fees are in *Costs*).
 
-  Filters (group, depot/exchange, name, gainers/losers) update the summary line.
+  Each KPI card also shows the value-weighted average TER of its positions, their costs per year
+  and their TER costs so far. Filters (group, depot/exchange, name, gainers/losers) update the
+  summary line.
+- **Allocation** — how your holdings split, for all asset classes (default) or any combination
+  of ETFs, stocks, Riester, crypto and cash (tick them at the top). A holding is an open position
+  from the Portfolio tab (positions under 1 € are left out) or cash: every account with a
+  positive balance and every running fixed-term deposit (liabilities are left out).
+  - KPI cards: *Value*; *Average TER* — weighted by value over the holdings that have a TER;
+    *Ongoing costs p.a.* = Σ value × TER; *Costs to date* = order costs & fees paid + the
+    estimated TER costs so far.
+  - Four splits, each as a donut and a table with the number of holdings, value and share:
+    *Region* (US, Europe, Emerging Markets, World, Commodities), *Accumulating vs. distributing*,
+    *Physical vs. synthetic* and *Type* (Index, Dividend, Value, Small Cap, Energy, Real Estate,
+    Commodity). Every split adds up to 100 % of the selected value: holdings a split doesn't
+    apply to (e.g. crypto in the region split) get a grey slice named after their asset class,
+    *Unknown* means the master data has no value yet. Hover a slice or row for its holdings.
+  - The classification comes from the datahub master data (`source_etf__master_data.csv`, the
+    Riester contract: its `RIESTER` row there; stocks: `region` in
+    `source_stocks__master_data.csv`); see its README for the values.
 - **Sold Positions** — every closed ETF/stock position with what it was bought and sold for,
   dividends, order and ongoing costs, *net profit* = proceeds + dividends − buy amount − costs,
   *ROI* = net profit / buy amount and *return p.a.* (XIRR of its flows). The KPI cards sum the

@@ -16,6 +16,11 @@ any two years.
 The Transactions tab lists every expense and income transaction in one
 sortable, filterable table, with totals of whatever the filters leave over.
 
+The Allocation tab splits the holdings (all asset classes, or any combination
+of ETFs, stocks, Riester, crypto and cash) by region, accumulating vs.
+distributing, physical vs. synthetic and ETF type (count, value and share)
+and shows their average TER, ongoing costs per year and costs so far.
+
 The Sold Positions tab lists every sold ETF/stock position with what it was
 bought and sold for, its dividends and costs, net profit and return; clicking a
 position lists its single cashflows.
@@ -49,9 +54,24 @@ from dash import (
 from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 
 from . import config, figures
+from .allocation import (
+    ASSET_CLASSES,
+    DIMENSIONS,
+    UNKNOWN,
+    Dimension,
+    breakdown,
+    build_holdings,
+    cost_summary,
+    select,
+)
 from .cash import STATUS_LABELS, STATUS_MATURED, CashData, load_cash_data
 from .data import FinanceData, load_finance_data
-from .portfolio import GROUP_ORDER, PortfolioData, load_portfolio_data
+from .portfolio import (
+    GROUP_ORDER,
+    PortfolioData,
+    load_portfolio_data,
+    weighted_ter,
+)
 from .sold_positions import (
     SOLD_GROUP_ORDER,
     SoldPositionsData,
@@ -77,6 +97,7 @@ YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 PORTFOLIO: PortfolioData = load_portfolio_data()
 SOLD: SoldPositionsData = load_sold_positions_data()
 CASH: CashData | None = load_cash_data()
+HOLDINGS: pd.DataFrame = build_holdings(PORTFOLIO, CASH)
 
 # Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
 # later. Each section is a top-level navigation item holding its own row of
@@ -84,7 +105,9 @@ CASH: CashData | None = load_cash_data()
 # range slider; "yearly" = calendar-year totals + category comparisons;
 # "portfolio" = positions table + aggregate KPI cards; "transactions" = table
 # of all transactions; "sold" = sold positions table + KPI cards + drill-down;
-# "cash" = account balances, fixed-term deposits and available vs. bound cash.
+# "cash" = account balances, fixed-term deposits and available vs. bound cash;
+# "allocation" = holdings split by region / distribution / replication / type
+# plus TER and costs, for any combination of asset classes.
 SECTIONS = [
     {
         "key": "cashflow-section",
@@ -121,6 +144,11 @@ SECTIONS = [
         "label": "Investment",
         "tabs": [
             {"kind": "portfolio", "label": "Portfolio", "layout": "portfolio"},
+            {
+                "kind": "allocation",
+                "label": "Allocation",
+                "layout": "allocation",
+            },
             {"kind": "sold", "label": "Sold Positions", "layout": "sold"},
         ],
     },
@@ -314,6 +342,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_sold_tab(tab)
     if tab["layout"] == "cash":
         return build_cash_tab(tab)
+    if tab["layout"] == "allocation":
+        return build_allocation_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -941,6 +971,13 @@ _QUANTITY = Format(
     scheme=Scheme.decimal_or_exponent,
     trim=Trim.yes,
 )
+# TERs are small (0.07 %), so two decimals.
+_TER = Format(
+    precision=2,
+    scheme=Scheme.fixed,
+    symbol=Symbol.yes,
+    symbol_suffix=" %",
+)
 _PRICE = Format(
     group=Group.yes,
     precision=6,
@@ -985,12 +1022,35 @@ _PORTFOLIO_TABLE_COLUMNS = [
         "type": "numeric",
         "format": _PERCENT,
     },
+    {"name": "TER", "id": "ter", "type": "numeric", "format": _TER},
+    {
+        "name": "Costs p.a.",
+        "id": "cost_pa",
+        "type": "numeric",
+        "format": _MONEY,
+    },
+    {
+        "name": "TER costs to date",
+        "id": "ter_cost_to_date",
+        "type": "numeric",
+        "format": _MONEY,
+    },
     {"name": "As of", "id": "as_of"},
 ]
 _ANNUAL_RETURN_HINT = (
     "Money-weighted average annual return (XIRR): accounts for when each buy, "
     "sale and dividend happened, valuing what's still held at today's price. "
     "Blank for coins bought mostly by swapping other coins (no EUR price)."
+)
+_TER_HINT = (
+    "Total expense ratio per year from the master data. Riester: the fees of "
+    "the last 12 months relative to its value. Stocks and crypto have none."
+)
+_COST_PA_HINT = "Ongoing costs per year at today's value: value × TER."
+_TER_TO_DATE_HINT = (
+    "Estimated ongoing costs (TER) since the position was bought: for every "
+    "month held, the month-end value × TER / 12. Not a booking — the fund "
+    "takes it out of its assets. Riester: 0, its fees are in Costs."
 )
 
 
@@ -1050,9 +1110,41 @@ def _portfolio_group_card(
                 },
             ),
             _annual_return_line(row["annual_return"]),
+            _ter_line(row["ter"], row["cost_pa"], row["ter_cost_to_date"]),
         ],
         flex="1",
         minWidth="230px",
+    )
+
+
+def _ter_line(ter: float, cost_pa: float, to_date: float) -> html.Div:
+    """'TER Ø 0.21 %  ·  123 € p.a.  ·  760 € so far' ("No TER" for groups
+    without one)."""
+    muted = {"color": C["text_muted"], "fontSize": "13px"}
+    if pd.isna(ter):
+        return html.Div("No TER", style={**muted, "marginTop": "2px"})
+    return html.Div(
+        [
+            html.Span("TER Ø ", style=muted),
+            html.Span(
+                f"{ter:.2f} %", style={"color": C["text"], "fontSize": "13px"}
+            ),
+            html.Span("  ·  ", style=muted),
+            html.Span(
+                f"{cost_pa:,.0f} €",
+                style={"color": C["text"], "fontSize": "13px"},
+            ),
+            html.Span(" p.a.  ·  ", style=muted),
+            html.Span(
+                f"{to_date:,.0f} €",
+                style={"color": C["text"], "fontSize": "13px"},
+            ),
+            html.Span(" so far", style=muted),
+        ],
+        title="Value-weighted average TER of the positions that have one, "
+        "what they cost per year at today's value (value × TER), and the "
+        "estimated ongoing costs since they were bought (on top of Costs).",
+        style={"marginTop": "2px", "cursor": "help"},
     )
 
 
@@ -1165,10 +1257,17 @@ def _filter_portfolio(
 
 def _portfolio_summary(rows: list[dict] | None) -> list:
     rows = rows or []
-    df = pd.DataFrame(rows, columns=["value", "investment", "costs", "gain"])
-    value, invested, costs, gain = (
+    df = pd.DataFrame(
+        rows,
+        columns=["value", "investment", "costs", "gain", "cost_pa", "ter"],
+    )
+    value, invested, costs, gain, cost_pa = (
         pd.to_numeric(df[c], errors="coerce").sum()
-        for c in ("value", "investment", "costs", "gain")
+        for c in ("value", "investment", "costs", "gain", "cost_pa")
+    )
+    ter = weighted_ter(
+        pd.to_numeric(df["value"], errors="coerce"),
+        pd.to_numeric(df["ter"], errors="coerce"),
     )
     pct = gain / invested * 100 if invested else 0.0
     gain_color = C["positive"] if gain >= 0 else C["negative"]
@@ -1189,6 +1288,10 @@ def _portfolio_summary(rows: list[dict] | None) -> list:
             f"{gain:+,.0f} € ({pct:+.1f} %)",
             style={**strong, "color": gain_color},
         ),
+        "  ·  TER Ø ",
+        html.Span("—" if pd.isna(ter) else f"{ter:.2f} %", style=strong),
+        "  ·  Costs p.a. ",
+        html.Span(f"{cost_pa:,.0f} €", style=strong),
     ]
 
 
@@ -1242,10 +1345,251 @@ def _portfolio_table() -> dash_table.DataTable:
             for col in ("gain", "gain_pct", "annual_return")
             for op, color in (("<", C["negative"]), (">=", C["positive"]))
         ],
-        tooltip_header={"annual_return": _ANNUAL_RETURN_HINT},
+        tooltip_header={
+            "annual_return": _ANNUAL_RETURN_HINT,
+            "ter": _TER_HINT,
+            "cost_pa": _COST_PA_HINT,
+            "ter_cost_to_date": _TER_TO_DATE_HINT,
+        },
         tooltip_delay=300,
         tooltip_duration=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Allocation tab (breakdowns by attribute + TER / costs, per asset class)
+# ---------------------------------------------------------------------------
+_ALLOCATION_COLORS = {
+    d.col: figures.allocation_colors(
+        list(d.labels.values()),
+        [b for b in d.order if b not in d.labels.values() and b != UNKNOWN],
+    )
+    for d in DIMENSIONS
+}
+_ALLOCATION_CLASSES = [
+    c for c in ASSET_CLASSES if c in set(HOLDINGS["asset_class"])
+]
+_COSTS_TO_DATE_HINT = (
+    "Order costs and fees paid (Costs in the Portfolio tab; Riester: its "
+    "fees) plus the estimated ongoing costs (TER) since each position was "
+    "bought: month-end value x TER / 12 for every month held."
+)
+
+
+def _allocation_controls() -> html.Div:
+    counts = HOLDINGS["asset_class"].value_counts()
+    return html.Div(
+        [
+            _control_label("Asset classes"),
+            dcc.Checklist(
+                id="allocation-classes",
+                options=[
+                    {"label": f" {c}  ({counts.get(c, 0)})", "value": c}
+                    for c in _ALLOCATION_CLASSES
+                ],
+                value=list(_ALLOCATION_CLASSES),
+                inline=True,
+                inputStyle={"marginRight": "4px"},
+                labelStyle={"marginRight": "18px", "cursor": "pointer"},
+                style={"color": C["text"], "fontSize": "14px"},
+            ),
+            html.Button(
+                "Select all",
+                id="allocation-all",
+                n_clicks=0,
+                style={
+                    "backgroundColor": C["background"],
+                    "color": C["text"],
+                    "border": f"1px solid {C['grid']}",
+                    "borderRadius": "6px",
+                    "padding": "4px 12px",
+                    "cursor": "pointer",
+                },
+            ),
+        ],
+        style={"display": "flex", "flexWrap": "wrap", "alignItems": "center"},
+    )
+
+
+def _allocation_cost_kpis(holdings: pd.DataFrame) -> list[html.Div]:
+    summary = cost_summary(holdings)
+    n_funds = summary.n_with_ter
+    ter_share = (
+        summary.ter_value / summary.value * 100 if summary.value else 0.0
+    )
+    costs_to_date = _cash_kpi(
+        "Costs to date",
+        f"{summary.costs_to_date:,.0f} €",
+        f"{summary.costs_paid:,.0f} € order costs & fees  +  "
+        f"{summary.ter_cost_to_date:,.0f} € ongoing (est.)",
+    )
+    costs_to_date.title = _COSTS_TO_DATE_HINT
+    return [
+        _cash_kpi(
+            "Value",
+            f"{summary.value:,.0f} €",
+            f"{summary.n_holdings} holdings",
+        ),
+        _cash_kpi(
+            "Average TER",
+            "—" if pd.isna(summary.ter) else f"{summary.ter:.2f} %",
+            f"weighted by value over {n_funds} fund"
+            f"{'s' if n_funds != 1 else ''} ({ter_share:.0f} % of the value)",
+        ),
+        _cash_kpi(
+            "Ongoing costs p.a.",
+            f"{summary.cost_pa:,.0f} €",
+            f"value × TER  ·  {summary.cost_pa_pct:.2f} % of the whole value",
+        ),
+        costs_to_date,
+    ]
+
+
+def _swatch(color: str) -> html.Span:
+    return html.Span(
+        style={
+            "display": "inline-block",
+            "width": "10px",
+            "height": "10px",
+            "borderRadius": "2px",
+            "backgroundColor": color,
+            "marginRight": "8px",
+        }
+    )
+
+
+def _breakdown_table(bd: pd.DataFrame, colors: dict[str, str]) -> html.Table:
+    cell = {"padding": "5px 8px", "borderBottom": f"1px solid {C['grid']}"}
+    num = {**cell, "textAlign": "right", "whiteSpace": "nowrap"}
+    head = {**num, "color": C["text_muted"], "fontWeight": "400"}
+    header = html.Thead(
+        html.Tr(
+            [
+                html.Th("", style=head),
+                html.Th("Holdings", style=head),
+                html.Th("Value", style=head),
+                html.Th("Share", style=head),
+            ]
+        )
+    )
+    rows = []
+    for r in bd.itertuples():
+        rows.append(
+            html.Tr(
+                [
+                    html.Td(
+                        [_swatch(colors.get(r.bucket, C["grid"])), r.bucket],
+                        style=cell,
+                    ),
+                    html.Td(str(r.n), style=num),
+                    html.Td(f"{r.value:,.0f} €", style=num),
+                    html.Td(f"{r.pct:.1f} %", style=num),
+                ],
+                title=", ".join(r.names),
+            )
+        )
+    return html.Table(
+        [header, html.Tbody(rows)],
+        style={
+            "borderCollapse": "collapse",
+            "color": C["text"],
+            "fontSize": "13px",
+            "width": "100%",
+        },
+    )
+
+
+def _breakdown_card(dim: Dimension, holdings: pd.DataFrame) -> html.Div:
+    bd = breakdown(holdings, dim)
+    colors = _ALLOCATION_COLORS[dim.col]
+    return _card(
+        [
+            html.Div(
+                dim.title,
+                style={
+                    "color": C["text"],
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                    "marginBottom": "6px",
+                },
+            ),
+            html.Div(
+                [
+                    html.Div(
+                        dcc.Graph(
+                            figure=figures.allocation_donut_figure(bd, colors),
+                            config={"displayModeBar": False},
+                        ),
+                        style={"flex": "0 0 230px"},
+                    ),
+                    html.Div(
+                        _breakdown_table(bd, colors),
+                        style={"flex": "1", "minWidth": "240px"},
+                    ),
+                ],
+                style={
+                    "display": "flex",
+                    "flexWrap": "wrap",
+                    "alignItems": "center",
+                    "gap": "8px",
+                },
+            ),
+        ],
+        flex="1 1 520px",
+        minWidth="300px",
+    )
+
+
+def _allocation_body(classes: list[str] | None) -> list:
+    holdings = select(HOLDINGS, classes)
+    if not classes or holdings.empty:
+        return [_card("Tick at least one asset class.", color=C["text_muted"])]
+    kpis = html.Div(
+        _allocation_cost_kpis(holdings),
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+    cards = html.Div(
+        [_breakdown_card(d, holdings) for d in DIMENSIONS],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+    note = html.Div(
+        "Every split adds up to 100 % of the selected value. Grey slices are "
+        "asset classes the split doesn't apply to; Unknown means the master "
+        "data has no value yet (datahub source_etf__master_data.csv). Hover a "
+        "slice or row to see its holdings.",
+        style={
+            "color": C["text_muted"],
+            "fontSize": "12px",
+            "margin": "0 10px 10px",
+        },
+    )
+    return [kpis, cards, note]
+
+
+def build_allocation_tab(tab: dict) -> dcc.Tab:
+    controls = _card([_allocation_controls()])
+    body = html.Div(
+        _allocation_body(list(_ALLOCATION_CLASSES)), id="allocation-body"
+    )
+    return _tab_shell(tab["label"], tab["kind"], [controls, body])
+
+
+def _register_allocation_callbacks() -> None:
+    @app.callback(
+        Output("allocation-classes", "value"),
+        Input("allocation-all", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def _select_all(_n):
+        return list(_ALLOCATION_CLASSES)
+
+    @app.callback(
+        Output("allocation-body", "children"),
+        Input("allocation-classes", "value"),
+        prevent_initial_call=True,
+    )
+    def _update(classes):
+        return _allocation_body(classes)
 
 
 # ---------------------------------------------------------------------------
@@ -2548,6 +2892,7 @@ _register_callbacks()
 _register_yearly_callbacks()
 _register_transactions_callbacks()
 _register_portfolio_callbacks()
+_register_allocation_callbacks()
 _register_sold_callbacks()
 
 
