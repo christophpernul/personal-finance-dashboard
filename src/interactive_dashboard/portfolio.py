@@ -13,7 +13,7 @@ Every position gets an ``exchange``: where it is held — the depot (broker) for
 ETFs and stocks, the exchange/wallet for crypto — and an ``annual_return``: its money-weighted average annual return (see returns.py).
 
 ETFs, stocks and the Riester contract also carry their master-data attributes
-from the datahub: ``ter`` (% p.a.; Riester: fees of the last 12 months / value),
+from the datahub: ``ter`` (% p.a.; Riester has none, only the fees in ``costs``),
 ``region``, ``distribution``, ``replication``, ``etf_type`` and the estimated
 ongoing costs so far ``ter_cost_to_date``. ``cost_pa`` = value x TER is what a
 position costs per year at its current value. Older datahub output without

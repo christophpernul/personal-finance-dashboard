@@ -96,8 +96,8 @@ negative money out (the charts show both as positive bars).
     price in the data and get no return.
   - *As of* — the date of the data (ETFs/stocks: month of the last trade, prices are current;
     Riester: date of the value).
-  - *TER* — total expense ratio per year from the master data (Riester: the fees of the last 12
-    months / value; stocks and crypto have none), *Costs p.a.* = value × TER,
+  - *TER* — total expense ratio per year from the master data (stocks, crypto and Riester have
+    none; Riester's costs are only the fees in *Costs*), *Costs p.a.* = value × TER,
     *TER costs to date* — estimated ongoing costs since the position was bought: for every month
     held, the month-end value × TER / 12 (Riester: 0, its fees are in *Costs*).
 

@@ -1043,8 +1043,8 @@ _ANNUAL_RETURN_HINT = (
     "Blank for coins bought mostly by swapping other coins (no EUR price)."
 )
 _TER_HINT = (
-    "Total expense ratio per year from the master data. Riester: the fees of "
-    "the last 12 months relative to its value. Stocks and crypto have none."
+    "Total expense ratio per year from the master data. Stocks, crypto and "
+    "Riester have none (Riester's costs are the fees charged, in Costs)."
 )
 _COST_PA_HINT = "Ongoing costs per year at today's value: value × TER."
 _TER_TO_DATE_HINT = (
