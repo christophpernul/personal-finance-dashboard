@@ -426,3 +426,87 @@ def term_deposit_timeline_figure(
     fig.update_layout(showlegend=False, hovermode="closest", bargap=0.35)
     fig.update_xaxes(type="date")
     return fig
+
+
+# Allocation buckets: the attribute's own values get distinct hues (in display
+# order), buckets of asset classes the attribute doesn't apply to stay grey so
+# they read as "not part of this split", and "Unknown" (master data missing)
+# is darker still.
+ALLOCATION_PALETTE = [
+    "#29b6f6",
+    "#2ec4b6",
+    "#a78bfa",
+    "#f1c40f",
+    "#e67e22",
+    "#e84393",
+    "#8d6e63",
+]
+ALLOCATION_OTHER = ["#95a5a6", "#7f8c8d", "#b2babb", "#6c7a89", "#a4b0be"]
+ALLOCATION_UNKNOWN = "#566573"
+
+
+def allocation_colors(own: list[str], others: list[str]) -> dict[str, str]:
+    """Fixed color per bucket label of one breakdown."""
+    colors = {
+        b: ALLOCATION_PALETTE[i % len(ALLOCATION_PALETTE)]
+        for i, b in enumerate(own)
+    }
+    colors.update(
+        {
+            b: ALLOCATION_OTHER[i % len(ALLOCATION_OTHER)]
+            for i, b in enumerate(others)
+        }
+    )
+    colors["Unknown"] = ALLOCATION_UNKNOWN
+    return colors
+
+
+def allocation_donut_figure(
+    breakdown: pd.DataFrame, colors: dict[str, str]
+) -> go.Figure:
+    """Share of value per bucket as a donut; hover lists the holdings."""
+    if breakdown.empty:
+        return _empty("No holdings selected")
+
+    def _names(names: list[str]) -> str:
+        shown = "<br>".join(names[:8])
+        more = len(names) - 8
+        return shown + (f"<br>… and {more} more" if more > 0 else "")
+
+    fig = go.Figure(
+        go.Pie(
+            labels=breakdown["bucket"],
+            values=breakdown["value"],
+            hole=0.55,
+            sort=False,
+            direction="clockwise",
+            marker=dict(
+                colors=[
+                    colors.get(b, ALLOCATION_UNKNOWN)
+                    for b in breakdown["bucket"]
+                ],
+                line=dict(color=C["panel"], width=2),
+            ),
+            textinfo="percent",
+            textposition="inside",
+            insidetextorientation="horizontal",
+            customdata=list(
+                zip(breakdown["n"], [_names(n) for n in breakdown["names"]])
+            ),
+            hovertemplate=(
+                "<b>%{label}</b><br>%{value:,.0f} €  ·  %{percent}"
+                "<br>%{customdata[0]} holdings<br><br>%{customdata[1]}"
+                "<extra></extra>"
+            ),
+        )
+    )
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=C["text"]),
+        margin=dict(l=10, r=10, t=10, b=10),
+        height=240,
+        showlegend=False,
+        uniformtext=dict(minsize=10, mode="hide"),
+    )
+    return fig

@@ -12,6 +12,13 @@ its current price/value and the amount invested:
 Every position gets an ``exchange``: where it is held — the depot (broker) for
 ETFs and stocks, the exchange/wallet for crypto — and an ``annual_return``: its money-weighted average annual return (see returns.py).
 
+ETFs, stocks and the Riester contract also carry their master-data attributes
+from the datahub: ``ter`` (% p.a.; Riester has none, only the fees in ``costs``),
+``region``, ``distribution``, ``replication``, ``etf_type`` and the estimated
+ongoing costs so far ``ter_cost_to_date``. ``cost_pa`` = value x TER is what a
+position costs per year at its current value. Older datahub output without
+these columns still loads (attributes empty, costs 0).
+
 Note: the snapshot date can differ per group (e.g. ETFs current, stocks from an
 earlier scrape), so the ``as_of`` date is kept and surfaced in the UI.
 """
@@ -57,7 +64,11 @@ _RENAME = {
     "type": "instrument_type",
     "currency": "currency",
     "security_type": "security_type",
+    "ter": "ter",
+    "ter_cost_to_date": "ter_cost_to_date",
 }
+# Classification of a position (raw master-data values, see allocation.py).
+ATTRIBUTE_COLUMNS = ["region", "distribution", "replication", "etf_type"]
 
 # Crypto columns that differ from the ETF/stock ones (the rest match _RENAME).
 _CRYPTO_RENAME = {
@@ -83,7 +94,11 @@ DISPLAY_COLUMNS = [
     "gain",
     "gain_pct",
     "annual_return",
+    "ter",
+    "cost_pa",
+    "ter_cost_to_date",
     "as_of",
+    *ATTRIBUTE_COLUMNS,
 ]
 
 _NUMERIC = [
@@ -94,7 +109,19 @@ _NUMERIC = [
     "costs",
     "gain",
     "gain_pct",
+    "ter",
+    "ter_cost_to_date",
 ]
+
+
+def weighted_ter(values: pd.Series, ters: pd.Series) -> float:
+    """Value-weighted average TER (%) of the positions that have one; NaN if
+    none has."""
+    has_ter = ters.notna() & values.notna()
+    total = values[has_ter].sum()
+    if not total:
+        return float("nan")
+    return float((values[has_ter] * ters[has_ter]).sum() / total)
 
 
 @dataclass
@@ -105,7 +132,14 @@ class PortfolioData:
     def group_aggregates(self) -> pd.DataFrame:
         """Value/investment/costs/gain totals per group plus an 'All' total
         row."""
-        cols = ["value", "investment", "costs", "gain"]
+        cols = [
+            "value",
+            "investment",
+            "costs",
+            "gain",
+            "cost_pa",
+            "ter_cost_to_date",
+        ]
         by_group = self.positions.groupby("group")[cols].sum()
         total = self.positions[cols].sum().to_frame().T
         total.index = ["All"]
@@ -114,6 +148,16 @@ class PortfolioData:
             agg["gain"] / agg["investment"].replace(0, pd.NA)
         ) * 100
         agg["annual_return"] = agg.index.map(self.returns.by_group)
+        pos = self.positions
+        agg["ter"] = [
+            weighted_ter(pos["value"], pos["ter"])
+            if grp == "All"
+            else weighted_ter(
+                pos.loc[pos["group"] == grp, "value"],
+                pos.loc[pos["group"] == grp, "ter"],
+            )
+            for grp in agg.index
+        ]
         agg["n_positions"] = pd.concat(
             [
                 pd.Series({"All": len(self.positions)}),
@@ -200,8 +244,17 @@ def load_portfolio_data(
         [_load_securities(path), _load_crypto(crypto_path)],
         ignore_index=True,
     )
+    # Datahub output from before the attributes were passed on lacks them.
+    for col in ["ter", "ter_cost_to_date", *ATTRIBUTE_COLUMNS]:
+        if col not in df.columns:
+            df[col] = pd.NA
     for col in _NUMERIC:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in ATTRIBUTE_COLUMNS:
+        df[col] = df[col].astype("string").str.strip().str.lower()
+    df["ter_cost_to_date"] = df["ter_cost_to_date"].fillna(0.0)
+    # Yearly ongoing costs at today's value; positions without TER cost 0.
+    df["cost_pa"] = (df["value"] * df["ter"] / 100).fillna(0.0)
 
     # Crypto positions are keyed by coin, ETFs/stocks by ISIN (stocks: name).
     returns = compute_returns(GROUP_LABELS, CRYPTO_GROUP)
