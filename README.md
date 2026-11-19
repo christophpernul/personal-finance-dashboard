@@ -55,6 +55,7 @@ Files each tab reads (all written by the datahub):
 | --- | --- |
 | Expenses, Income, Cashflow, Yearly, Transactions | `target/target_cashflow__expenses.csv`, `target/target_cashflow__incomes.csv` |
 | Portfolio, Allocation | `transform/transform_portfolio__value.csv`, `transform/transform_crypto__portfolio_value.csv`; for returns `transform/transform_portfolio__cashflows.csv`, `transform/transform_crypto__ledger.csv`, `transform/transform_crypto__trades.csv`, `transform/transform_crypto__coins.csv` |
+| Monthly Savings plan | `transform/transform_etf__savings_plan.csv` (if missing, the tab shows a hint) |
 | Sold Positions | `target/target_portfolio__sold_positions.csv`, `target/target_portfolio__sold_position_flows.csv` |
 | Balancesheet, Allocation (cash) | `transform/transform_cash__balances_monthly.csv`, `transform/transform_cash__term_deposits.csv`, `transform/transform_cash__liquidity_monthly.csv` (if missing, the tab shows a hint and the rest still works) |
 
@@ -120,6 +121,14 @@ negative money out (the charts show both as positive bars).
   - The classification comes from the datahub master data (`source_etf__master_data.csv`, the
     Riester contract: its `RIESTER` row there; stocks: `region` in
     `source_stocks__master_data.csv`); see its README for the values.
+- **Monthly Savings plan** — the latest execution of your ETF savings plan: every buy with the
+  highest `index` in the `Buys` sheet (one execution, even if its buys fall on different days).
+  - KPI cards: *Monthly amount* (with the execution number and dates), *Per year* = 12 × that
+    amount, *Average TER* weighted by the amount per ETF, *Order costs* of the execution.
+  - Table: which ETFs are bought for how much (amount, share, price, shares, TER, region,
+    accumulating / distributing).
+  - Two splits by amount, as donut and table like in Allocation: *Region* and *Accumulating vs.
+    distributing*.
 - **Sold Positions** — every closed ETF/stock position with what it was bought and sold for,
   dividends, order and ongoing costs, *net profit* = proceeds + dividends − buy amount − costs,
   *ROI* = net profit / buy amount and *return p.a.* (XIRR of its flows). The KPI cards sum the
