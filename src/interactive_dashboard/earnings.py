@@ -156,12 +156,14 @@ def _family(base_hex: str, n: int) -> list[str]:
     if n <= 1:
         return [base_hex][:n]
     r, g, b = config._hex_to_rgb(base_hex)
-    hue, _, sat = colorsys.rgb_to_hls(r, g, b)
+    hue, base_light, sat = colorsys.rgb_to_hls(r, g, b)
     sat = min(max(sat, 0.45), 0.7)
+    # shades spread around the type's own lightness (kept out of the extremes)
+    center = min(max(base_light, 0.45), 0.65)
     colors = []
     for i in range(n):
-        drift = (i / (n - 1) - 0.5) * 0.12
-        light = 0.36 + 0.36 * ((i * 0.618) % 1)
+        drift = (i / (n - 1) - 0.5) * 0.06
+        light = center - 0.15 + 0.3 * ((i * 0.618) % 1)
         colors.append(
             config._rgb_to_hex(
                 colorsys.hls_to_rgb((hue + drift) % 1, light, sat)
@@ -180,6 +182,16 @@ def _holding_colors(payments: pd.DataFrame) -> dict[str, str]:
         for holding, color in zip(holdings, _family(base, len(holdings))):
             colors[holding] = color
     return colors
+
+
+def _unique_names(names: pd.Series, holdings: pd.Series) -> pd.Series:
+    """Append the holding id to a name that several holdings share (e.g. two
+    fixed-term deposits at the same provider): the charts list holdings by
+    name, so a shared name would merge them into one bar."""
+    pairs = pd.DataFrame({"name": names, "holding": holdings})
+    shared = pairs.drop_duplicates().groupby("name")["holding"].nunique() > 1
+    clash = names.map(shared).fillna(False).astype(bool)
+    return names.where(~clash, names + " (" + holdings + ")")
 
 
 def load_earnings_data(
@@ -207,7 +219,9 @@ def load_earnings_data(
     if payments.empty:
         return None
     payments["holding"] = payments["holding"].fillna("").astype(str)
-    payments["name"] = payments["name"].fillna(payments["holding"])
+    payments["name"] = _unique_names(
+        payments["name"].fillna(payments["holding"]), payments["holding"]
+    )
     payments["type"] = (
         payments["category"].map(TYPE_BY_CATEGORY).fillna(OTHER_TYPE)
     )

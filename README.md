@@ -132,14 +132,19 @@ negative money out (the charts show both as positive bars).
     distributing*.
 - **Earnings** — dividends (ETFs and stocks, sold holdings included) and interest (Tagesgeld,
   Festgeld) received, counted on the day they were paid out or credited.
-  - KPI cards: *Earnings*, *Dividends* and *Interest* of the current year (earnings compared with
-    last year up to the same date) and *All-time earnings*.
+  - KPI cards: *Earnings*, *Dividends* and *Interest* of the selected year (the running year
+    compared with last year up to the same date, a past year with the year before) and
+    *All-time earnings*.
   - *Earnings per year*: stacked bars by *Type* (ETF / stock dividends, Tagesgeld / Festgeld
     interest) or by *Holding*; the slider picks the years shown, the running year is hatched
-    (*YTD*). Click a bar to break that year down by holding (with the previous year in the hover).
-  - *Dividends per holding* of the current year, largest first, with the total in the title.
+    (*YTD*).
+  - **Click a bar** to see that year on the whole tab (the current year until you click): the
+    KPI cards, the earnings of the year by holding, its dividends per holding (largest first,
+    total in the title; the hover shows the year before) and the order of the table.
   - Table *Dividends per holding and year*: every holding × year with the total, ordered by the
-    current year.
+    selected year.
+  - Two holdings with the same name (e.g. two fixed-term deposits at WeltSparen) are told apart by
+    their id, e.g. *WeltSparen Festgeld (ZF0102)*.
 - **Sold Positions** — every closed ETF/stock position with what it was bought and sold for,
   dividends, order and ongoing costs, *net profit* = proceeds + dividends − buy amount − costs,
   *ROI* = net profit / buy amount and *return p.a.* (XIRR of its flows). The KPI cards sum the
