@@ -510,3 +510,156 @@ def allocation_donut_figure(
         uniformtext=dict(minsize=10, mode="hide"),
     )
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Earnings (dividends and interest)
+# ---------------------------------------------------------------------------
+def _short(name: str, limit: int = 42) -> str:
+    return name if len(name) <= limit else name[: limit - 1].rstrip() + "…"
+
+
+def earnings_yearly_figure(
+    earnings,
+    years: list[int],
+    stack_by: str = "type",
+    selected_year: int | None = None,
+) -> go.Figure:
+    """Earnings per year as stacked bars, by type or by holding.
+
+    The running year is hatched and reads "<year> YTD"; the other years than
+    ``selected_year`` are dimmed so the clicked bar stands out.
+    """
+    if not years:
+        return _empty("No earnings in the selected years")
+    current = earnings.current_year
+    if stack_by == "holding":
+        matrix = earnings.yearly_by_holding().loc[years]
+        holdings = earnings.holdings()
+        series = [
+            (
+                h,
+                holdings.at[h, "name"],
+                holdings.at[h, "type"],
+                earnings.holding_colors.get(h, C["text_muted"]),
+            )
+            for h in matrix.columns
+        ]
+    else:
+        from .earnings import TYPE_COLORS
+
+        matrix = earnings.yearly_by_type().loc[years]
+        series = [
+            (t, t, t, TYPE_COLORS.get(t, C["text_muted"]))
+            for t in matrix.columns
+        ]
+
+    labels = [f"{y} YTD" if y == current else str(y) for y in years]
+    hatch = ["/" if y == current else "" for y in years]
+    opacity = [
+        1.0 if selected_year is None or y == selected_year else 0.45
+        for y in years
+    ]
+    fig = go.Figure()
+    for key, name, type_, color in series:
+        values = matrix[key].values
+        if not (values > 0).any():
+            continue
+        fig.add_bar(
+            x=labels,
+            y=values,
+            name=_short(name, 34),
+            legendgroup=type_,
+            customdata=[[name, type_, y] for y in years],
+            marker=dict(
+                color=color,
+                opacity=opacity,
+                pattern=dict(shape=hatch, fgcolor=C["panel"], size=6),
+                line=dict(width=0),
+            ),
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>%{customdata[1]}<br>"
+                "%{x}: %{y:,.2f} €<extra></extra>"
+            )
+            if stack_by == "holding"
+            else "%{y:,.2f} €",
+        )
+    totals = matrix.sum(axis=1).values
+    fig.add_scatter(
+        x=labels,
+        y=totals,
+        mode="text",
+        text=[f"{v:,.0f} €" for v in totals],
+        textposition="top center",
+        textfont=dict(color=C["text"], size=12),
+        showlegend=False,
+        hoverinfo="skip",
+        cliponaxis=False,
+    )
+    _base_layout(fig, height=460)
+    fig.update_layout(
+        barmode="stack",
+        bargap=0.3,
+        hovermode="closest" if stack_by == "holding" else "x unified",
+        showlegend=stack_by != "holding",
+        legend=dict(orientation="h", y=1.02, yanchor="bottom", x=0),
+        clickmode="event",
+    )
+    fig.update_xaxes(type="category")
+    top = float(totals.max()) if len(totals) else 0.0
+    fig.update_yaxes(title_text="€", range=[0, top * 1.12 if top > 0 else 1])
+    return fig
+
+
+def earnings_holdings_figure(
+    rows: pd.DataFrame,
+    colors: dict[str, str],
+    *,
+    title: str,
+    empty_message: str,
+    previous: pd.Series | None = None,
+) -> go.Figure:
+    """Horizontal bars per holding (``rows``: holding, name, type, amount,
+    payments), largest on top, labelled with the amount. ``previous`` (holding
+    -> amount) adds last year's amount to the hover."""
+    if rows.empty:
+        return _empty(empty_message)
+    rows = rows.iloc[::-1]  # largest on top
+    prev = (
+        rows["holding"].map(previous).fillna(0.0)
+        if previous is not None
+        else pd.Series(float("nan"), index=rows.index)
+    )
+    custom = list(
+        zip(rows["name"], rows["type"], rows["payments"], prev.values)
+    )
+    hover = (
+        "<b>%{customdata[0]}</b><br>%{customdata[1]}<br>"
+        "%{x:,.2f} € from %{customdata[2]} payment(s)"
+    )
+    if previous is not None:
+        hover += "<br>Previous year: %{customdata[3]:,.2f} €"
+    fig = go.Figure()
+    fig.add_bar(
+        x=rows["amount"].values,
+        y=[_short(n) for n in rows["name"]],
+        orientation="h",
+        marker_color=[colors.get(h, C["text_muted"]) for h in rows["holding"]],
+        customdata=custom,
+        text=[f"{v:,.2f} €" for v in rows["amount"].values],
+        textposition="outside",
+        textfont=dict(color=C["text"]),
+        cliponaxis=False,
+        hovertemplate=hover + "<extra></extra>",
+    )
+    _base_layout(fig, height=max(300, 110 + 30 * len(rows)))
+    _make_room_for_labels(fig, rows["amount"].values)
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=15)),
+        showlegend=False,
+        hovermode="closest",
+        margin=dict(l=20, r=40, t=50, b=40),
+    )
+    fig.update_yaxes(automargin=True)
+    fig.update_xaxes(title_text="€")
+    return fig
