@@ -25,6 +25,11 @@ The Monthly Savings plan tab shows the latest execution of the ETF savings
 plan: which ETFs it buys for how much, split by region and accumulating vs.
 distributing.
 
+The Earnings tab shows the dividends and interest (Tagesgeld, Festgeld)
+received per year as stacked bars, by type or by holding, over any range of
+years; clicking a year breaks it down by holding. It also ranks the dividends of
+the current year per holding and lists the dividends of every holding per year.
+
 The Sold Positions tab lists every sold ETF/stock position with what it was
 bought and sold for, its dividends and costs, net profit and return; clicking a
 position lists its single cashflows.
@@ -77,6 +82,12 @@ from .portfolio import (
     load_portfolio_data,
     weighted_ter,
 )
+from .earnings import (
+    KIND_DIVIDEND,
+    KIND_INTEREST,
+    EarningsData,
+    load_earnings_data,
+)
 from .savings_plan import SavingsPlan, load_savings_plan
 from .sold_positions import (
     SOLD_GROUP_ORDER,
@@ -104,6 +115,7 @@ PORTFOLIO: PortfolioData = load_portfolio_data()
 SOLD: SoldPositionsData = load_sold_positions_data()
 CASH: CashData | None = load_cash_data()
 SAVINGS_PLAN: SavingsPlan | None = load_savings_plan()
+EARNINGS: EarningsData | None = load_earnings_data()
 HOLDINGS: pd.DataFrame = build_holdings(PORTFOLIO, CASH)
 
 # Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
@@ -114,7 +126,8 @@ HOLDINGS: pd.DataFrame = build_holdings(PORTFOLIO, CASH)
 # of all transactions; "sold" = sold positions table + KPI cards + drill-down;
 # "cash" = account balances, fixed-term deposits and available vs. bound cash;
 # "allocation" = holdings split by region / distribution / replication / type
-# plus TER and costs, for any combination of asset classes.
+# plus TER and costs, for any combination of asset classes; "earnings" =
+# dividends and interest per year and holding.
 SECTIONS = [
     {
         "key": "cashflow-section",
@@ -161,6 +174,7 @@ SECTIONS = [
                 "label": "Monthly Savings plan",
                 "layout": "savings_plan",
             },
+            {"kind": "earnings", "label": "Earnings", "layout": "earnings"},
             {"kind": "sold", "label": "Sold Positions", "layout": "sold"},
         ],
     },
@@ -358,6 +372,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_allocation_tab(tab)
     if tab["layout"] == "savings_plan":
         return build_savings_plan_tab(tab)
+    if tab["layout"] == "earnings":
+        return build_earnings_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -1699,6 +1715,327 @@ def build_savings_plan_tab(tab: dict) -> dcc.Tab:
         tab["kind"],
         [_plan_kpis(SAVINGS_PLAN), _plan_table(SAVINGS_PLAN), cards, note],
     )
+
+
+# ---------------------------------------------------------------------------
+# Earnings tab (dividends and interest per year and holding)
+# ---------------------------------------------------------------------------
+_EARNINGS_STACK_OPTIONS = [
+    {"label": "Type", "value": "type"},
+    {"label": "Holding", "value": "holding"},
+]
+_DIVIDEND_TYPE_LABELS = {"ETF dividends": "ETF", "Stock dividends": "Stock"}
+
+
+def _earnings_year_label(year: int) -> str:
+    if EARNINGS is not None and year == EARNINGS.current_year:
+        return f"{year} YTD"
+    return str(year)
+
+
+def _earnings_change(current: float, previous: float, year: int) -> str:
+    if not previous:
+        return f"nothing by this date in {year}"
+    pct = (current / previous - 1) * 100
+    return f"{pct:+.0f} % vs {previous:,.2f} € by this date in {year}"
+
+
+def _earnings_kpis(earnings: EarningsData, today: pd.Timestamp) -> html.Div:
+    year = earnings.current_year
+    current = earnings.total(year)
+    previous = earnings.total(year - 1, until=today - pd.DateOffset(years=1))
+    dividends = earnings.total(year, KIND_DIVIDEND)
+    n_paying = len(earnings.in_year(year, KIND_DIVIDEND))
+    interest = earnings.total(year, KIND_INTEREST)
+    return html.Div(
+        [
+            _cash_kpi(
+                f"Earnings {year}",
+                f"{current:,.2f} €",
+                _earnings_change(current, previous, year - 1),
+                color=C["positive"],
+            ),
+            _cash_kpi(
+                f"Dividends {year}",
+                f"{dividends:,.2f} €",
+                f"from {n_paying} holding{'s' if n_paying != 1 else ''}",
+            ),
+            _cash_kpi(
+                f"Interest {year}",
+                f"{interest:,.2f} €",
+                "Tagesgeld and Festgeld",
+            ),
+            _cash_kpi(
+                "All-time earnings",
+                f"{earnings.total():,.2f} €",
+                f"since {earnings.years[0]}  ·  "
+                f"{earnings.total(kind=KIND_DIVIDEND):,.0f} € dividends, "
+                f"{earnings.total(kind=KIND_INTEREST):,.0f} € interest",
+            ),
+        ],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+
+
+def _earnings_yearly_card(earnings: EarningsData) -> html.Div:
+    years = earnings.years
+    return _card(
+        [
+            _section_title("Earnings per year"),
+            html.Div(
+                [
+                    _control_label("Stack by:"),
+                    _radio("earnings-stack", _EARNINGS_STACK_OPTIONS, "type"),
+                    html.Span(
+                        "Click a bar to break that year down by holding",
+                        style={
+                            "color": C["text_muted"],
+                            "fontSize": "12px",
+                            "float": "right",
+                        },
+                    ),
+                ],
+                style={"marginBottom": "16px"},
+            ),
+            dcc.RangeSlider(
+                id="earnings-years",
+                min=years[0],
+                max=years[-1],
+                step=1,
+                value=[years[0], years[-1]],
+                marks={
+                    y: {"label": str(y), "style": {"color": C["text_muted"]}}
+                    for y in years
+                },
+                allowCross=False,
+            ),
+            dcc.Graph(id="earnings-yearly-graph"),
+        ]
+    )
+
+
+def _dividends_ranking_figure(earnings: EarningsData):
+    year = earnings.current_year
+    rows = earnings.in_year(year, KIND_DIVIDEND)
+    previous = earnings.in_year(year - 1, KIND_DIVIDEND).set_index("holding")[
+        "amount"
+    ]
+    return figures.earnings_holdings_figure(
+        rows,
+        earnings.holding_colors,
+        title=(
+            f"Dividends {_earnings_year_label(year)} per holding: "
+            f"<b>{rows['amount'].sum():,.2f} €</b>"
+        ),
+        empty_message=f"No dividends in {year} yet",
+        previous=previous,
+    )
+
+
+def _dividends_table_records(earnings: EarningsData) -> list[dict]:
+    year = earnings.current_year
+    matrix = earnings.yearly_by_holding(KIND_DIVIDEND).T  # holding x year
+    info = earnings.holdings()
+    matrix["total"] = matrix.sum(axis=1)
+    matrix = matrix.sort_values([year, "total"], ascending=False)
+    records = []
+    for holding, row in matrix.iterrows():
+        record = {
+            "name": info.at[holding, "name"],
+            "type": _DIVIDEND_TYPE_LABELS.get(info.at[holding, "type"], ""),
+            "total": row["total"],
+        }
+        # empty instead of 0,00 € in years without a dividend
+        record.update(
+            {str(y): (row[y] if row[y] else None) for y in earnings.years}
+        )
+        records.append(record)
+    totals = {"name": "Total", "type": "", "total": matrix["total"].sum()}
+    totals.update({str(y): matrix[y].sum() for y in earnings.years})
+    records.append(totals)
+    return records
+
+
+def _dividends_table_card(earnings: EarningsData) -> html.Div:
+    year = earnings.current_year
+    records = _dividends_table_records(earnings)
+    columns = [
+        {"name": "Holding", "id": "name"},
+        {"name": "Type", "id": "type"},
+    ]
+    columns += [
+        {
+            "name": _earnings_year_label(y),
+            "id": str(y),
+            "type": "numeric",
+            "format": _MONEY,
+        }
+        for y in earnings.years
+    ]
+    columns.append(
+        {"name": "Total", "id": "total", "type": "numeric", "format": _MONEY}
+    )
+    table = dash_table.DataTable(
+        id="earnings-dividends-table",
+        columns=columns,
+        data=records,
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header=_TABLE_HEADER_STYLE,
+        style_cell=_TABLE_CELL_STYLE,
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in ("name", "type")
+        ],
+        style_data_conditional=[
+            {
+                "if": {"column_id": str(year)},
+                "color": C["income"],
+                "fontWeight": "600",
+            },
+            {"if": {"column_id": "total"}, "fontWeight": "600"},
+            {
+                "if": {"filter_query": '{name} = "Total"'},
+                "fontWeight": "700",
+                "backgroundColor": C["background"],
+            },
+        ],
+        tooltip_data=[
+            {"name": {"value": r["name"], "type": "text"}} for r in records
+        ],
+        tooltip_delay=400,
+        tooltip_duration=None,
+    )
+    return _card(
+        [
+            _section_title("Dividends per holding and year"),
+            html.Div(
+                f"Ordered by the dividends of {_earnings_year_label(year)}, "
+                "then by the total; sold holdings stay listed.",
+                style={
+                    "color": C["text_muted"],
+                    "fontSize": "12px",
+                    "marginBottom": "10px",
+                },
+            ),
+            table,
+        ]
+    )
+
+
+def build_earnings_tab(tab: dict) -> dcc.Tab:
+    if EARNINGS is None:
+        body = [
+            _card(
+                "No earnings found. Run the datahub to create "
+                "transform_portfolio__earnings.csv from the Dividends and "
+                "Zinsen sheets.",
+                color=C["text_muted"],
+            )
+        ]
+        return _tab_shell(tab["label"], tab["kind"], body)
+    detail_row = html.Div(
+        [
+            html.Div(
+                _card(dcc.Graph(id="earnings-year-graph")),
+                style={"flex": "1", "minWidth": "420px"},
+            ),
+            html.Div(
+                _card(
+                    dcc.Graph(
+                        id="earnings-dividends-graph",
+                        figure=_dividends_ranking_figure(EARNINGS),
+                    )
+                ),
+                style={"flex": "1", "minWidth": "420px"},
+            ),
+        ],
+        style={
+            "display": "flex",
+            "flexWrap": "wrap",
+            "alignItems": "flex-start",
+        },
+    )
+    note = html.Div(
+        "Dividends count when paid out (ETF distributions and stock "
+        "dividends, sold holdings included); interest when credited to the "
+        "Tagesgeld or Festgeld account. The running year counts every "
+        "payment so far.",
+        style={
+            "color": C["text_muted"],
+            "fontSize": "12px",
+            "margin": "0 10px 10px",
+        },
+    )
+    return _tab_shell(
+        tab["label"],
+        tab["kind"],
+        [
+            _earnings_kpis(EARNINGS, pd.Timestamp.today().normalize()),
+            _earnings_yearly_card(EARNINGS),
+            detail_row,
+            _dividends_table_card(EARNINGS),
+            note,
+            dcc.Store(id="earnings-selected-year", data=EARNINGS.current_year),
+        ],
+    )
+
+
+def _clicked_year(click_data) -> int | None:
+    """The year of a clicked bar (its tick reads "2025" or "2026 YTD")."""
+    try:
+        return int(str(click_data["points"][0]["x"])[:4])
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
+def _register_earnings_callbacks() -> None:
+    if EARNINGS is None:
+        return
+
+    @app.callback(
+        Output("earnings-selected-year", "data"),
+        Input("earnings-yearly-graph", "clickData"),
+        prevent_initial_call=True,
+    )
+    def _select_year(click_data):
+        year = _clicked_year(click_data)
+        return no_update if year is None else year
+
+    @app.callback(
+        Output("earnings-yearly-graph", "figure"),
+        Output("earnings-year-graph", "figure"),
+        Input("earnings-years", "value"),
+        Input("earnings-stack", "value"),
+        Input("earnings-selected-year", "data"),
+    )
+    def _update_earnings(years_range, stack_by, selected):
+        all_years = EARNINGS.years
+        start, end = sorted(years_range or [all_years[0], all_years[-1]])
+        years = [y for y in all_years if start <= y <= end]
+        # a year outside the slider range falls back to the latest one shown
+        if selected not in years:
+            selected = years[-1] if years else None
+        yearly = figures.earnings_yearly_figure(
+            EARNINGS, years, stack_by or "type", selected
+        )
+        if selected is None:
+            return yearly, figures._empty("No year selected")
+        rows = EARNINGS.in_year(selected)
+        previous = EARNINGS.in_year(selected - 1).set_index("holding")[
+            "amount"
+        ]
+        breakdown = figures.earnings_holdings_figure(
+            rows,
+            EARNINGS.holding_colors,
+            title=(
+                f"Earnings {_earnings_year_label(selected)} by holding: "
+                f"<b>{rows['amount'].sum():,.2f} €</b>"
+            ),
+            empty_message=f"No earnings in {selected}",
+            previous=previous,
+        )
+        return yearly, breakdown
 
 
 def _allocation_body(classes: list[str] | None) -> list:
@@ -3055,6 +3392,7 @@ _register_transactions_callbacks()
 _register_portfolio_callbacks()
 _register_allocation_callbacks()
 _register_sold_callbacks()
+_register_earnings_callbacks()
 
 
 def main() -> None:

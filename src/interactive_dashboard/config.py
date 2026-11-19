@@ -29,6 +29,8 @@ PORTFOLIO_FILE = "transform_portfolio__value.csv"
 CRYPTO_PORTFOLIO_FILE = "transform_crypto__portfolio_value.csv"
 # The latest execution of the monthly ETF savings plan (one row per ETF).
 SAVINGS_PLAN_FILE = "transform_etf__savings_plan.csv"
+# Every dividend and interest payment with its holding / account.
+EARNINGS_FILE = "transform_portfolio__earnings.csv"
 # Dated cashflows behind the money-weighted annual returns.
 PORTFOLIO_CASHFLOWS_FILE = "transform_portfolio__cashflows.csv"
 CRYPTO_LEDGER_FILE = "transform_crypto__ledger.csv"
