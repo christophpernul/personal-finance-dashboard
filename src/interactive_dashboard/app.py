@@ -21,6 +21,10 @@ of ETFs, stocks, Riester, crypto and cash) by region, accumulating vs.
 distributing, physical vs. synthetic and ETF type (count, value and share)
 and shows their average TER, ongoing costs per year and costs so far.
 
+The Monthly Savings plan tab shows the latest execution of the ETF savings
+plan: which ETFs it buys for how much, split by region and accumulating vs.
+distributing.
+
 The Sold Positions tab lists every sold ETF/stock position with what it was
 bought and sold for, its dividends and costs, net profit and return; clicking a
 position lists its single cashflows.
@@ -56,6 +60,7 @@ from dash.dash_table.Format import Format, Group, Scheme, Symbol, Trim
 from . import config, figures
 from .allocation import (
     ASSET_CLASSES,
+    DIMENSION_BY_COL,
     DIMENSIONS,
     UNKNOWN,
     Dimension,
@@ -72,6 +77,7 @@ from .portfolio import (
     load_portfolio_data,
     weighted_ter,
 )
+from .savings_plan import SavingsPlan, load_savings_plan
 from .sold_positions import (
     SOLD_GROUP_ORDER,
     SoldPositionsData,
@@ -97,6 +103,7 @@ YTD_SPAN = "Jan" if YTD_CUTOFF.month == 1 else f"Jan – {YTD_CUTOFF:%b}"
 PORTFOLIO: PortfolioData = load_portfolio_data()
 SOLD: SoldPositionsData = load_sold_positions_data()
 CASH: CashData | None = load_cash_data()
+SAVINGS_PLAN: SavingsPlan | None = load_savings_plan()
 HOLDINGS: pd.DataFrame = build_holdings(PORTFOLIO, CASH)
 
 # Tab registry — add a dict to a section's ``tabs`` to introduce a new tab
@@ -148,6 +155,11 @@ SECTIONS = [
                 "kind": "allocation",
                 "label": "Allocation",
                 "layout": "allocation",
+            },
+            {
+                "kind": "savings-plan",
+                "label": "Monthly Savings plan",
+                "layout": "savings_plan",
             },
             {"kind": "sold", "label": "Sold Positions", "layout": "sold"},
         ],
@@ -344,6 +356,8 @@ def build_tab(tab: dict) -> dcc.Tab:
         return build_cash_tab(tab)
     if tab["layout"] == "allocation":
         return build_allocation_tab(tab)
+    if tab["layout"] == "savings_plan":
+        return build_savings_plan_tab(tab)
 
     kind, label = tab["kind"], tab["label"]
     has_cats = tab["has_categories"]
@@ -1458,7 +1472,12 @@ def _swatch(color: str) -> html.Span:
     )
 
 
-def _breakdown_table(bd: pd.DataFrame, colors: dict[str, str]) -> html.Table:
+def _breakdown_table(
+    bd: pd.DataFrame,
+    colors: dict[str, str],
+    count_label: str = "Holdings",
+    value_label: str = "Value",
+) -> html.Table:
     cell = {"padding": "5px 8px", "borderBottom": f"1px solid {C['grid']}"}
     num = {**cell, "textAlign": "right", "whiteSpace": "nowrap"}
     head = {**num, "color": C["text_muted"], "fontWeight": "400"}
@@ -1466,8 +1485,8 @@ def _breakdown_table(bd: pd.DataFrame, colors: dict[str, str]) -> html.Table:
         html.Tr(
             [
                 html.Th("", style=head),
-                html.Th("Holdings", style=head),
-                html.Th("Value", style=head),
+                html.Th(count_label, style=head),
+                html.Th(value_label, style=head),
                 html.Th("Share", style=head),
             ]
         )
@@ -1499,7 +1518,12 @@ def _breakdown_table(bd: pd.DataFrame, colors: dict[str, str]) -> html.Table:
     )
 
 
-def _breakdown_card(dim: Dimension, holdings: pd.DataFrame) -> html.Div:
+def _breakdown_card(
+    dim: Dimension,
+    holdings: pd.DataFrame,
+    count_label: str = "Holdings",
+    value_label: str = "Value",
+) -> html.Div:
     bd = breakdown(holdings, dim)
     colors = _ALLOCATION_COLORS[dim.col]
     return _card(
@@ -1523,7 +1547,7 @@ def _breakdown_card(dim: Dimension, holdings: pd.DataFrame) -> html.Div:
                         style={"flex": "0 0 230px"},
                     ),
                     html.Div(
-                        _breakdown_table(bd, colors),
+                        _breakdown_table(bd, colors, count_label, value_label),
                         style={"flex": "1", "minWidth": "240px"},
                     ),
                 ],
@@ -1537,6 +1561,143 @@ def _breakdown_card(dim: Dimension, holdings: pd.DataFrame) -> html.Div:
         ],
         flex="1 1 520px",
         minWidth="300px",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Monthly savings plan tab (the latest execution of the ETF savings plan)
+# ---------------------------------------------------------------------------
+_PLAN_DIMENSIONS = [
+    DIMENSION_BY_COL["region"],
+    DIMENSION_BY_COL["distribution"],
+]
+_PLAN_TABLE_COLUMNS = [
+    {"name": "ETF", "id": "name"},
+    {"name": "ISIN", "id": "isin"},
+    {"name": "Depot", "id": "depot"},
+    {"name": "Amount", "id": "amount", "type": "numeric", "format": _MONEY},
+    {"name": "Share", "id": "share", "type": "numeric", "format": _PERCENT},
+    {"name": "Price", "id": "price", "type": "numeric", "format": _PRICE},
+    {"name": "Shares", "id": "shares", "type": "numeric", "format": _QUANTITY},
+    {"name": "TER", "id": "ter", "type": "numeric", "format": _TER},
+    {"name": "Region", "id": "region_label"},
+    {"name": "Acc / Dist", "id": "distribution_label"},
+    {"name": "Executed", "id": "date"},
+]
+
+
+def _plan_kpis(plan: SavingsPlan) -> html.Div:
+    n = len(plan.buys)
+    return html.Div(
+        [
+            _cash_kpi(
+                "Monthly amount",
+                f"{plan.amount:,.2f} €",
+                f"{n} ETF{'s' if n != 1 else ''}  ·  execution #{plan.execution}"
+                f"  ·  {plan.date_label}",
+            ),
+            _cash_kpi(
+                "Per year",
+                f"{plan.amount * 12:,.0f} €",
+                "12 × the latest execution",
+            ),
+            _cash_kpi(
+                "Average TER",
+                "—" if pd.isna(plan.ter) else f"{plan.ter:.2f} %",
+                "weighted by the amount per ETF",
+            ),
+            _cash_kpi(
+                "Order costs",
+                f"{plan.costs:,.2f} €",
+                "of this execution",
+            ),
+        ],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+
+
+def _plan_records(plan: SavingsPlan) -> list[dict]:
+    buys = plan.buys.copy()
+    for dim in _PLAN_DIMENSIONS:
+        buys[f"{dim.col}_label"] = [
+            dim.bucket("ETFs", raw) for raw in buys[dim.col]
+        ]
+    buys["date"] = buys["date"].dt.strftime("%Y-%m-%d")
+    return buys.to_dict("records")
+
+
+def _plan_table(plan: SavingsPlan) -> html.Div:
+    table = dash_table.DataTable(
+        id="savings-plan-table",
+        columns=_PLAN_TABLE_COLUMNS,
+        data=_plan_records(plan),
+        sort_action="native",
+        style_as_list_view=True,
+        style_table={"overflowX": "auto"},
+        style_header=_TABLE_HEADER_STYLE,
+        style_cell=_TABLE_CELL_STYLE,
+        style_cell_conditional=[
+            {"if": {"column_id": c}, "textAlign": "left"}
+            for c in (
+                "name",
+                "isin",
+                "depot",
+                "region_label",
+                "distribution_label",
+                "date",
+            )
+        ],
+    )
+    return _card(
+        [
+            html.Div(
+                "Which ETFs the plan buys",
+                style={
+                    "color": C["text"],
+                    "fontSize": "15px",
+                    "fontWeight": "600",
+                    "marginBottom": "10px",
+                },
+            ),
+            table,
+        ]
+    )
+
+
+def build_savings_plan_tab(tab: dict) -> dcc.Tab:
+    if SAVINGS_PLAN is None:
+        body = [
+            _card(
+                "No savings plan found. Run the datahub to create "
+                "transform_etf__savings_plan.csv from the Buys sheet.",
+                color=C["text_muted"],
+            )
+        ]
+        return _tab_shell(tab["label"], tab["kind"], body)
+    holdings = SAVINGS_PLAN.as_holdings()
+    cards = html.Div(
+        [
+            _breakdown_card(
+                d, holdings, count_label="ETFs", value_label="Amount"
+            )
+            for d in _PLAN_DIMENSIONS
+        ],
+        style={"display": "flex", "flexWrap": "wrap"},
+    )
+    note = html.Div(
+        "The latest execution of the savings plan: every buy with the highest "
+        "index of the Buys sheet. The splits are by amount invested; hover a "
+        "slice or row to see its ETFs.",
+        style={
+            "color": C["text_muted"],
+            "fontSize": "12px",
+            "margin": "0 10px 10px",
+        },
+    )
+    return _tab_shell(
+        tab["label"],
+        tab["kind"],
+        [_plan_kpis(SAVINGS_PLAN), _plan_table(SAVINGS_PLAN), cards, note],
     )
 
 
